@@ -85,6 +85,24 @@ export const CowDetailModal: React.FC = () => {
   const ecmYield = calculateECM(cow.milkYieldTodayL, cow.fatPct, cow.proteinPct);
   const fpr = calculateFPR(cow.fatPct, cow.proteinPct);
 
+  const getBehaviorBadge = (state?: string) => {
+    switch (state) {
+      case 'eating':
+        return { label: language === 'tr' ? '🌾 Yem Yeme (TMR)' : '🌾 Eating TMR', color: 'bg-amber-950 text-amber-300 border-amber-800' };
+      case 'resting':
+        return { label: language === 'tr' ? '💤 Dinlenme & Geviş Getirme' : '💤 Resting & Ruminating', color: 'bg-indigo-950 text-indigo-300 border-indigo-800' };
+      case 'grazing':
+        return { label: language === 'tr' ? '🍀 Gezinme & Yemlenme' : '🍀 Grazing & Wandering', color: 'bg-emerald-950 text-emerald-300 border-emerald-800' };
+      case 'milking':
+        return { label: language === 'tr' ? '🥛 Sağım Durumu' : '🥛 Milking', color: 'bg-sky-950 text-sky-300 border-sky-800' };
+      case 'walking':
+        return { label: language === 'tr' ? '🚶 Ahır İçi Gezinti' : '🚶 Walking in Barn', color: 'bg-slate-800 text-slate-300 border-slate-700' };
+      default:
+        return { label: language === 'tr' ? '💤 Dinlenme & Geviş Getirme' : '💤 Resting', color: 'bg-indigo-950 text-indigo-300 border-indigo-800' };
+    }
+  };
+  const behaviorBadge = getBehaviorBadge(cow.behaviorState);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
       <div className="relative bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl text-slate-100 p-6 flex flex-col gap-5">
@@ -95,10 +113,13 @@ export const CowDetailModal: React.FC = () => {
               #{cow.tagNumber}
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl font-bold tracking-tight text-white">{cow.name}</h2>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
                   {breed.name}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${behaviorBadge.color}`}>
+                  {behaviorBadge.label}
                 </span>
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full font-medium ${

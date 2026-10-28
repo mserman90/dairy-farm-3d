@@ -142,8 +142,10 @@ export const Farm3DCanvas: React.FC = () => {
 
     // Mouse and Keyboard Controls
     let isMouseDown = false;
+    let activeMouseButton = 0; // 0: Sol Tık (Orbit), 2: Sağ Tık (Pan)
     let prevMouseX = 0;
     let prevMouseY = 0;
+    let dragDistance = 0;
     let orbitAzimuth = 0.7;
     let orbitElevation = 0.55;
     let orbitDistance = 42;
@@ -151,8 +153,10 @@ export const Farm3DCanvas: React.FC = () => {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button === 0 || e.button === 2) {
         isMouseDown = true;
+        activeMouseButton = e.button;
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        dragDistance = 0;
       }
     };
 
@@ -166,13 +170,30 @@ export const Farm3DCanvas: React.FC = () => {
       const dy = e.clientY - prevMouseY;
       prevMouseX = e.clientX;
       prevMouseY = e.clientY;
+      dragDistance += Math.abs(dx) + Math.abs(dy);
 
-      orbitAzimuth -= dx * 0.006;
-      orbitElevation = Math.max(0.1, Math.min(Math.PI / 2.1, orbitElevation + dy * 0.006));
+      if (activeMouseButton === 0) {
+        // 🖱️ Fare Sol Tık + Sürükleme: Çiftlik etrafında 360° serbest yörüngede (Orbit) dönme
+        orbitAzimuth -= dx * 0.006;
+        orbitElevation = Math.max(0.1, Math.min(Math.PI / 2.1, orbitElevation + dy * 0.006));
+      } else if (activeMouseButton === 2) {
+        // 🖱️ Fare Sağ Tık + Sürükleme: Kamerayı koridorlar boyunca yatay düzlemde kaydır (Pan)
+        const forward = new THREE.Vector3(-Math.sin(orbitAzimuth), 0, -Math.cos(orbitAzimuth)).normalize();
+        const right = new THREE.Vector3(Math.cos(orbitAzimuth), 0, -Math.sin(orbitAzimuth)).normalize();
+        const panFactor = orbitDistance * 0.0016;
+        cameraTargetRef.current.addScaledVector(right, -dx * panFactor);
+        cameraTargetRef.current.addScaledVector(forward, dy * panFactor);
+      }
     };
 
     const onWheel = (e: WheelEvent) => {
+      // 🔍 Fare Tekerleği: Yakınlaşma ve uzaklaşma (Zoom)
       orbitDistance = Math.max(12, Math.min(95, orbitDistance + e.deltaY * 0.04));
+    };
+
+    const onContextMenu = (e: MouseEvent) => {
+      // Sağ tık pan sırasında tarayıcı menüsünün açılmasını engelle
+      e.preventDefault();
     };
 
     // Raycast on Click to Select Cow
@@ -180,7 +201,10 @@ export const Farm3DCanvas: React.FC = () => {
     const mouse = new THREE.Vector2();
 
     const onClick = (e: MouseEvent) => {
-      // Don't fire if user dragged significantly
+      // Sürükleme yapıldıysa ineğe tıklama olayını tetikleme
+      if (dragDistance > 6) return;
+      if (e.button !== 0) return;
+
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -208,6 +232,7 @@ export const Farm3DCanvas: React.FC = () => {
     dom.addEventListener('mousemove', onMouseMove);
     dom.addEventListener('wheel', onWheel, { passive: true });
     dom.addEventListener('click', onClick);
+    dom.addEventListener('contextmenu', onContextMenu);
 
     // Keyboard Pan / Shortcuts
     const keyState: Record<string, boolean> = {};
@@ -430,6 +455,7 @@ export const Farm3DCanvas: React.FC = () => {
       dom.removeEventListener('mousemove', onMouseMove);
       dom.removeEventListener('wheel', onWheel);
       dom.removeEventListener('click', onClick);
+      dom.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('resize', handleResize);
