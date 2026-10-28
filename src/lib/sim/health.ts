@@ -240,6 +240,12 @@ function applySymptoms(cow: Cow): void {
   const tymp = cow.activeIllnesses.find((i) => i.type === 'acute_tympanites');
   const lda = cow.activeIllnesses.find((i) => i.type === 'abomasal_displacement');
   const diarrhea = cow.activeIllnesses.find((i) => i.type === 'neonatal_diarrhea');
+  const dd = cow.activeIllnesses.find((i) => i.type === 'digital_dermatitis');
+  const soleUlcer = cow.activeIllnesses.find((i) => i.type === 'sole_ulcer');
+  const downer = cow.activeIllnesses.find((i) => i.type === 'downer_cow');
+  const tetany = cow.activeIllnesses.find((i) => i.type === 'hypomagnesemia');
+  const omphalitis = cow.activeIllnesses.find((i) => i.type === 'omphalitis');
+  const retainedPlacenta = cow.activeIllnesses.find((i) => i.type === 'retained_placenta');
 
   if (mastitis) {
     if (mastitis.healthState === 'subclinical') {
@@ -251,7 +257,11 @@ function applySymptoms(cow: Cow): void {
     cow.scc = Math.max(70000, cow.scc - 10000);
   }
 
-  if (laminitis) {
+  if (downer) {
+    cow.locomotionScore = 5;
+  } else if (soleUlcer || dd) {
+    cow.locomotionScore = 4;
+  } else if (laminitis) {
     cow.locomotionScore = laminitis.healthState === 'subclinical' ? 2 : laminitis.healthState === 'clinical' ? 4 : 5;
   } else {
     cow.locomotionScore = 1;
@@ -268,6 +278,24 @@ function applySymptoms(cow: Cow): void {
   if (acidosis) appetite -= 20;
   if (tymp) appetite -= 60;
   if (lda) appetite -= 35;
+  if (dd) appetite -= 15;
+  if (soleUlcer) appetite -= 20;
+  if (retainedPlacenta) {
+    temp += 0.8;
+    appetite -= 25;
+  }
+  if (omphalitis) {
+    temp += 1.0;
+    appetite -= 30;
+  }
+  if (downer) {
+    temp -= 0.5;
+    appetite -= 50;
+  }
+  if (tetany) {
+    temp += 0.8;
+    appetite -= 60;
+  }
   if (milkFever) {
     temp -= 0.8;
     appetite -= 60;
@@ -328,6 +356,26 @@ export function treatCow(
   } else if (diseaseType === 'neonatal_diarrhea') {
     cost = 45;
     drugUsed = 'Oral Rehidrasyon Elektrolit & Antibiyotik';
+    meatLockDays = 14;
+  } else if (diseaseType === 'digital_dermatitis') {
+    cost = 60;
+    drugUsed = 'Oksitetrasiklin Tırnak Pansumanı & Bakır Sülfat Banyosu';
+  } else if (diseaseType === 'sole_ulcer') {
+    cost = 70;
+    drugUsed = 'Ortopedik Tahta Takoz & Tırnak Bandajı';
+  } else if (diseaseType === 'retained_placenta') {
+    cost = 65;
+    drugUsed = 'Sistemik Seftiofur & Uterotonik Protokol';
+    meatLockDays = 4;
+  } else if (diseaseType === 'downer_cow') {
+    cost = 75;
+    drugUsed = 'Mekanik Vinç ile Askıya Alma & Sinir Destek Terapisi';
+  } else if (diseaseType === 'hypomagnesemia') {
+    cost = 55;
+    drugUsed = 'Magnezyum Sülfat & Kalsiyum Glukonat IV/SC';
+  } else if (diseaseType === 'omphalitis') {
+    cost = 35;
+    drugUsed = 'Göbek İyot Daldırma & Sistemik Penisilin';
     meatLockDays = 14;
   }
 

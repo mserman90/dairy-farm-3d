@@ -4,6 +4,7 @@ import { attemptInsemination } from '../lib/sim/genetics';
 import { treatCow } from '../lib/sim/health';
 import { generateOptimalRation } from '../lib/sim/nutrition';
 import { createInitialFarmState, tickFarmSimulation } from '../lib/sim/farmState';
+import { resolveFarmEvent } from '../lib/sim/farmEvents';
 import {
   Breed,
   Cow,
@@ -31,7 +32,8 @@ export type ModalType =
   | 'finance'
   | 'breedLab'
   | 'settings'
-  | 'reproWheel'; // Tosun Paşa 283 Günlük İnek Çarkı Modalı
+  | 'reproWheel' // Tosun Paşa 283 Günlük İnek Çarkı Modalı
+  | 'events';   // Çiftlik Olayları & Kriz Yönetim Modalı
 
 interface FarmStore {
   farm: FarmState;
@@ -86,6 +88,7 @@ interface FarmStore {
   updateBovineMeasurements: (cowId: string, heartGirthCm: number, bodyLengthCm: number) => void;
   pushFeedAction: () => void;
   installAutomaticFeedPusherAction: () => boolean;
+  resolveFarmEventAction: (eventId: string) => boolean;
 
   // Facilities
   toggleFansAction: (active: boolean) => void;
@@ -130,6 +133,22 @@ function loadPersistedState(): FarmState {
         if (parsed.lastTankerPayment === undefined) parsed.lastTankerPayment = 0;
         if (parsed.facilities && parsed.facilities.automaticFeedPusher === undefined) {
           parsed.facilities.automaticFeedPusher = false;
+        }
+        if (parsed.facilities) {
+          if (parsed.facilities.footBathActive === undefined) parsed.facilities.footBathActive = true;
+          if (parsed.facilities.backupGeneratorActive === undefined) parsed.facilities.backupGeneratorActive = true;
+          if (parsed.facilities.diseaseFreeCertified === undefined) parsed.facilities.diseaseFreeCertified = false;
+          if (parsed.facilities.cipWashCycleDone === undefined) parsed.facilities.cipWashCycleDone = true;
+          if (parsed.facilities.toxinBinderActive === undefined) parsed.facilities.toxinBinderActive = false;
+        }
+        if (!parsed.recentFarmEvents) parsed.recentFarmEvents = [];
+        if (!parsed.activeDisasters) {
+          parsed.activeDisasters = {
+            heatwaveAlert: false,
+            powerOutage: false,
+            pipesFrozen: false,
+            bulkTankFailure: false,
+          };
         }
         parsed.cows.forEach((c: any) => {
           if (c.udderFillPct === undefined) c.udderFillPct = c.state === 'lactating' ? 60 : 0;
@@ -621,6 +640,19 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
       },
     }));
     return true;
+  },
+
+  resolveFarmEventAction: (eventId: string) => {
+    const s = get();
+    const res = resolveFarmEvent(s.farm, eventId);
+    if (res.success) {
+      synthAudio.playCashChime();
+      set({ farm: res.updatedFarm });
+      return true;
+    } else {
+      synthAudio.playWarningAlert();
+      return false;
+    }
   },
 
   toggleFansAction: (active: boolean) => {

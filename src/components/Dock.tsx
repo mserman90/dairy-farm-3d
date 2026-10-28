@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Dna,
   Settings,
+  Activity,
 } from 'lucide-react';
 import { ModalType, useFarmStore } from '../store/useFarmStore';
 import { getTranslation } from '../locales/i18n';
@@ -26,6 +27,7 @@ export const Dock: React.FC = () => {
 
   const lowFeedCount = Object.values(farm.feedStockKg).filter((kg) => kg < 1500).length;
   const pregnantCount = farm.cows.filter((c) => c.daysPregnant > 0).length;
+  const unresolvedEventsCount = (farm.recentFarmEvents || []).filter((e) => !e.resolved).length;
 
   const navItems: {
     id: ModalType;
@@ -81,6 +83,13 @@ export const Dock: React.FC = () => {
       id: 'breedLab',
       label: t.dock.breedLab,
       icon: <Dna className="w-5 h-5" />,
+    },
+    {
+      id: 'events',
+      label: t.dock.events || (language === 'tr' ? 'Olaylar' : 'Events'),
+      icon: <Activity className="w-5 h-5" />,
+      badge: unresolvedEventsCount > 0 ? unresolvedEventsCount : undefined,
+      badgeColor: 'bg-red-600 text-white animate-bounce',
     },
     {
       id: 'settings',

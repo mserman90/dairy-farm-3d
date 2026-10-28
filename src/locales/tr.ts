@@ -14,6 +14,7 @@ export const tr = {
     finance: 'Finans & Ekonomi (Finance)',
     breedLab: 'Irk Mühendisi (Breed Lab)',
     settings: 'Ayarlar & Kayıt (Settings)',
+    events: 'Çiftlik Olayları (Events)',
   },
 
   // Top Bar

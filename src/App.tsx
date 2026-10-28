@@ -16,6 +16,7 @@ import { FinanceModal } from './components/modals/FinanceModal';
 import { BreedEngineerModal } from './components/modals/BreedEngineerModal';
 import { ReproWheelModal } from './components/modals/ReproWheelModal';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { FarmEventsModal } from './components/modals/FarmEventsModal';
 
 import { synthAudio } from './lib/audio/synthAudio';
 
@@ -142,6 +143,7 @@ export const App: React.FC = () => {
       <BreedEngineerModal />
       <ReproWheelModal />
       <SettingsModal />
+      <FarmEventsModal />
     </div>
   );
 };

@@ -30,7 +30,13 @@ export type DiseaseType =
   | 'rumen_acidosis'        // Akut Rumen Asidozu (Tane yem çarpması)
   | 'acute_tympanites'      // Akut Timpani (Köpüklü/gazlı işkembe şişmesi)
   | 'abomasal_displacement' // Sol Abomazum Deplasmanı (Şirden kayması - LDA)
-  | 'neonatal_diarrhea';    // Buzağı Koli-Septisemi & Neonatal İshal
+  | 'neonatal_diarrhea'     // Buzağı Koli-Septisemi & Neonatal İshal
+  | 'digital_dermatitis'    // Dijital Dermatit / Mortellaro (Bulaşıcı Çilek Hastalığı)
+  | 'sole_ulcer'            // Tırnak Tabanı Ülseri (Rusterholz Ülseri)
+  | 'retained_placenta'     // Sonun Atılamaması (Retensiyo Sekundinarum)
+  | 'downer_cow'            // Düşen İnek Sendromu (Ayağa Kalkamama)
+  | 'hypomagnesemia'        // Çayır Tetani (Magnezyum Eksikliği)
+  | 'omphalitis';           // Buzağı Göbek Kordonu İltihabı (Göbek Yangısı)
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export type WeatherCondition = 'sunny' | 'cloudy' | 'rainy' | 'storm' | 'snow' | 'heatwave';
@@ -133,6 +139,8 @@ export interface CowEvent {
   day: number;
   type:
     | 'birth'
+    | 'twin_birth'
+    | 'dystocia_assistance'
     | 'weaned'
     | 'insemination'
     | 'estrus_check_21d'
@@ -141,11 +149,15 @@ export interface CowEvent {
     | 'scour_vaccine_250d'
     | 'calving'
     | 'dry_off'
+    | 'navel_dip'
+    | 'dehorning'
+    | 'ear_tagging'
     | 'illness'
     | 'treatment'
     | 'vaccination'
     | 'hoof_trim'
     | 'genomic_test'
+    | 'abortion'
     | 'culled';
   notes: string;
 }
@@ -247,6 +259,11 @@ export interface FarmFacility {
   milkingTimesPerDay: 2 | 3;     // 2x veya 3x sağım
   organicCertified: boolean;     // Organik süt sertifikası
   automaticFeedPusher: boolean;  // Otomatik yem itme robotu (Juno/Lely)
+  footBathActive: boolean;       // Sağımhane çıkışı koruyucu ayak banyosu (%5 bakır sülfat)
+  backupGeneratorActive: boolean;// Elektrik kesintisi acil durum jeneratörü
+  diseaseFreeCertified: boolean; // T.C. Tarım Bakanlığı Hastalıktan Ari İşletme Sertifikası
+  cipWashCycleDone: boolean;     // CIP otomatik sağım boru hattı alkali/asit yıkaması
+  toxinBinderActive: boolean;    // Rasyonda mikotoksin bağlayıcı premiks koruması
 }
 
 export interface FinancialRecord {
@@ -340,9 +357,47 @@ export interface FarmState {
     calvingIntervalDays: number;
     ikasLockBreaches: number;    // İKAS ihlal sayısı
   };
+
+  // Çiftlik Olayları & Afet / Durum Yönetimi
+  recentFarmEvents: FarmEventRecord[];
+  activeDisasters: {
+    heatwaveAlert: boolean;
+    powerOutage: boolean;
+    pipesFrozen: boolean;
+    bulkTankFailure: boolean;
+  };
 }
 
-export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'calving' | 'ikas';
+export type FarmEventCategory =
+  | 'calving_repro'
+  | 'health_disease'
+  | 'milking_quality'
+  | 'calf_rearing'
+  | 'feed_storage'
+  | 'weather_disaster'
+  | 'regulatory_audit';
+
+export interface FarmEventRecord {
+  id: string;
+  day: number;
+  hour: number;
+  category: FarmEventCategory;
+  titleTr: string;
+  titleEn: string;
+  descriptionTr: string;
+  descriptionEn: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  impactSummaryTr: string;
+  impactSummaryEn: string;
+  relatedCowTag?: number;
+  resolved: boolean;
+  actionCost?: number;
+  actionLabelTr?: string;
+  actionLabelEn?: string;
+  timestamp: number;
+}
+
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'calving' | 'ikas' | 'event';
 
 export interface NotificationItem {
   id: string;

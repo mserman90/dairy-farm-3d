@@ -5,6 +5,7 @@ import { updateCowHealth } from './health';
 import { analyzeRation, generateOptimalRation } from './nutrition';
 import { Cow, FarmState, FeedId, FinancialRecord, NotificationItem, getCircadianPhase } from './types';
 import { generateDailyWeather, getSeasonForDay } from './weather';
+import { evaluateFarmEvents } from './farmEvents';
 
 export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 'normal'): FarmState {
   const startingCash = difficulty === 'easy' ? 120000 : difficulty === 'normal' ? 65000 : 25000;
@@ -436,6 +437,14 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       calvingIntervalDays: 382,
       ikasLockBreaches: 0,
     },
+
+    recentFarmEvents: [],
+    activeDisasters: {
+      heatwaveAlert: false,
+      powerOutage: false,
+      pipesFrozen: false,
+      bulkTankFailure: false,
+    },
   };
 }
 
@@ -602,6 +611,13 @@ export function tickFarmSimulation(
         cow.rotationY = Math.random() * Math.PI * 2;
       }
     }
+  }
+
+  // 3.5. Çiftlik Olayları & Dinamik Kriz Motoru
+  const eventEval = evaluateFarmEvents(next, simHoursElapsed);
+  Object.assign(next, eventEval.updatedFarm);
+  if (eventEval.notifications.length > 0) {
+    notifications.push(...eventEval.notifications);
   }
 
   // 4. Sabah Sağımı Seansı (06:00 - 08:00)

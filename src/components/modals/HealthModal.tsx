@@ -257,7 +257,7 @@ export const HealthModal: React.FC = () => {
         {/* Tosun Paşa 6 Altın Acil Müdahale Protokolü */}
         <div className="flex flex-col gap-2.5 border-t border-slate-800 pt-4">
           <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-            <span>Tosun Paşa Çiftliği 6 Altın Acil Müdahale Protokolü</span>
+            <span>Tosun Paşa Çiftliği Altın Acil Müdahale Protokolleri ({GOLDEN_EMERGENCY_PROTOCOLS.length} Vaka)</span>
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">

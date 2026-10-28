@@ -13,6 +13,7 @@ export const en = {
     finance: 'Finance & Loans',
     breedLab: 'Breed Engineer',
     settings: 'Settings & Save',
+    events: 'Farm Events Log',
   },
 
   topBar: {

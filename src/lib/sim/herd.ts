@@ -267,10 +267,54 @@ function executeCalving(
   cow.dryPeriodDays = 0;
   cow.scourVaccineGiven = false;
 
+  // Güç Doğum (Dystocia) Kontrolü
+  const isDystocia = (sire && sire.calvingEasePct < 90 && Math.random() < 0.2) || calf.weightKg > 45;
+  if (isDystocia) {
+    cow.events.push({
+      day: currentDay,
+      type: 'dystocia_assistance',
+      notes: 'Güç doğum (Distosi): Doğum krikosu ve iki kişilik bakıcı müdahalesiyle buzağı sağlıklı çıkarıldı.',
+    });
+  }
+
+  // İkiz Doğum (Twin Calving) Şansı (~%4)
+  const isTwin = Math.random() < 0.04;
+  let twinCalf: Cow | null = null;
+  let isFreemartin = false;
+
+  if (isTwin) {
+    const nextTag2 = 100 + Math.floor(Math.random() * 899);
+    const twinResult = performCalving(cow, sire, currentDay, breeds, nextTag2);
+    twinCalf = twinResult.calf;
+    twinCalf.colostrumBrixPct = brix;
+    twinCalf.colostrumReceived = false;
+
+    // Biri dişi biri erkekse Freemartin kısırlık sendromu riski (%92)
+    const calf1IsFemale = calf.name.includes('Kızı');
+    const calf2IsFemale = twinCalf.name.includes('Kızı');
+    if ((calf1IsFemale && !calf2IsFemale) || (!calf1IsFemale && calf2IsFemale)) {
+      isFreemartin = true;
+      const heiferCalf = calf1IsFemale ? calf : twinCalf;
+      heiferCalf.events.push({
+        day: currentDay,
+        type: 'twin_birth',
+        notes: '⚠️ Heteroseksüel ikiz doğum! Freemartin Sendromu nedeniyle %92 ihtimalle kısırdır (damızlık vasfı yok).',
+      });
+    }
+
+    cow.events.push({
+      day: currentDay,
+      type: 'twin_birth',
+      notes: `Sürpriz İKİZ doğum gerçekleşti! ${isFreemartin ? '(Dişi-Erkek İkiz: Freemartin Riski!)' : '(Aynı cinsiyet ikiz buzağılar)'}`,
+    });
+
+    newBornCows.push(twinCalf);
+  }
+
   cow.events.push({
     day: currentDay,
     type: 'calving',
-    notes: `${damNotesTr} Kolostrum Kalitesi: %${brix} Brix.`,
+    notes: `${damNotesTr} Kolostrum Kalitesi: %${brix} Brix.${isDystocia ? ' (Doğum Krikosu Müdahalesi)' : ''}`,
   });
 
   newBornCows.push(calf);
@@ -280,10 +324,10 @@ function executeCalving(
     day: currentDay,
     hour: 6,
     type: 'calving',
-    titleTr: 'Yeni Doğum! (283 Günlük Çark Tamamlandı)',
-    titleEn: 'New Calving Event (Day 283 Wheel)',
-    messageTr: `${damNotesTr} Kolostrum ölçümü: %${brix} Brix (${brix >= 22 ? 'Altın Kalite' : 'Orta Kalite'}).`,
-    messageEn: `${damNotesEn} Colostrum test: ${brix}% Brix.`,
+    titleTr: isTwin ? '👯 İKİZ DOĞUM! (Sürpriz Çift Buzağı)' : 'Yeni Doğum! (283 Günlük Çark Tamamlandı)',
+    titleEn: isTwin ? '👯 TWIN CALVING! (Surprise Double Calves)' : 'New Calving Event (Day 283 Wheel)',
+    messageTr: `${damNotesTr} ${isTwin ? `İkiz eşi: #${twinCalf?.tagNumber}. ${isFreemartin ? '⚠️ Freemartin dişi kısırlık uyarısı!' : ''}` : ''} Kolostrum: %${brix} Brix (${brix >= 22 ? 'Altın Kalite' : 'Orta Kalite'}).`,
+    messageEn: `${damNotesEn} ${isTwin ? `Twin partner: #${twinCalf?.tagNumber}.` : ''} Colostrum test: ${brix}% Brix.`,
     timestamp: Date.now(),
   });
 }

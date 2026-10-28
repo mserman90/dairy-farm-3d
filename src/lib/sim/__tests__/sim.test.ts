@@ -17,6 +17,8 @@ import {
   formatVolumeValue,
   getCircadianPhase,
 } from '../types.js';
+import { createInitialFarmState } from '../farmState.js';
+import { evaluateFarmEvents, resolveFarmEvent } from '../farmEvents.js';
 
 test('Wood Lactation Curve: calculates realistic trajectory and peak', () => {
   const params = computeWoodParams(40, 2, 0.7);
@@ -315,4 +317,60 @@ test('Natural Flow of Life: 24-Hour Circadian Farm Routine', () => {
   // Night Rest & Calvings (22:00 - 05:00)
   const night = getCircadianPhase(2.0);
   assert.equal(night.phase, 'night_rest');
+});
+
+test('Comprehensive Farm Events: Full-Spectrum Dairy Event Engine & Interventions', () => {
+  const farm = createInitialFarmState('normal');
+  assert.ok(farm.recentFarmEvents, 'Farm should have recentFarmEvents initialized');
+  assert.ok(farm.activeDisasters, 'Farm should have activeDisasters initialized');
+
+  // 1. Force a CIP wash failure event at hour 10
+  farm.hour = 10.0;
+  farm.facilities.cipWashCycleDone = false;
+  const evalResult = evaluateFarmEvents(farm, 1.0);
+  assert.ok(evalResult.updatedFarm, 'evaluateFarmEvents should return updated farm state');
+
+  // 2. Resolve an event
+  const mockEvent = {
+    id: 'ev_cip_fail_test',
+    day: 1,
+    hour: 10,
+    category: 'milking_quality' as const,
+    titleTr: 'CIP Test',
+    titleEn: 'CIP Test',
+    descriptionTr: 'Test',
+    descriptionEn: 'Test',
+    severity: 'high' as const,
+    impactSummaryTr: 'Test',
+    impactSummaryEn: 'Test',
+    resolved: false,
+    actionCost: 25,
+    timestamp: Date.now(),
+  };
+  farm.recentFarmEvents = [mockEvent];
+  farm.cash = 1000;
+
+  const resolveRes = resolveFarmEvent(farm, 'ev_cip_fail_test');
+  assert.equal(resolveRes.success, true, 'Event resolution should succeed');
+  assert.equal(resolveRes.updatedFarm.cash, 975, 'Action cost should be deducted');
+  assert.equal(mockEvent.resolved, true, 'Event should be marked resolved');
+  assert.equal(resolveRes.updatedFarm.facilities.cipWashCycleDone, true, 'CIP cycle should be restored');
+
+  // 3. Test new clinical disease treatments (e.g. Mortellaro digital dermatitis)
+  const testCow = farm.cows[0];
+  testCow.activeIllnesses = [
+    {
+      type: 'digital_dermatitis',
+      healthState: 'clinical',
+      daysActive: 1,
+      severity: 0.7,
+      hoursUntilPermanentDamage: 30,
+    },
+  ];
+  updateCowHealth(testCow, DEFAULT_BREEDS[0], 0.7, 10, 1, false);
+  assert.equal(testCow.locomotionScore, 4, 'Digital dermatitis cow should have locomotion score 4');
+
+  const treatRes = treatCow(testCow, 'digital_dermatitis', 1);
+  assert.equal(treatRes.success, true, 'Treatment should succeed');
+  assert.equal(testCow.activeIllnesses.length, 0, 'Illness should be cleared after treatment');
 });
