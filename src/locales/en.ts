@@ -8,6 +8,7 @@ export const en = {
     feeding: 'Feeding & TMR',
     milking: 'Milking & Quality',
     health: 'Health & Veterinary',
+    reproWheel: 'Repro Wheel (283-Day)',
     housing: 'Housing & Welfare',
     finance: 'Finance & Loans',
     breedLab: 'Breed Engineer',

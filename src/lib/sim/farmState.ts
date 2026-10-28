@@ -1,5 +1,5 @@
 import { AI_BULLS_CATALOG, DEFAULT_BREEDS, FEED_DATABASE, INITIAL_EQUIPMENT, INITIAL_FACILITIES } from './constants';
-import { calculateMilkPayment, calculateOperatingExpenses, computeKpis } from './economy';
+import { calculateMilkPayment, calculateOperatingExpenses } from './economy';
 import { advanceCowDay } from './herd';
 import { updateCowHealth } from './health';
 import { analyzeRation, generateOptimalRation } from './nutrition';
@@ -10,9 +10,7 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
   const startingCash = difficulty === 'easy' ? 120000 : difficulty === 'normal' ? 65000 : 25000;
   const initialDebt = difficulty === 'hard' ? 40000 : 15000;
 
-  // 24 adet gerçekçi başlangıç sürüsü (farklı ırklar ve yaşam evreleri)
   const initialCows: Cow[] = [
-    // Holstein Yüksek Verimli İnekler
     {
       id: 'cow_1',
       name: 'Bella',
@@ -25,21 +23,29 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       activeIllnesses: [],
       bcs: 3.25,
       weightKg: 670,
+      heartGirthCm: 206,
+      bodyLengthCm: 165,
       locomotionScore: 1,
       appetitePct: 100,
       bodyTempC: 38.6,
       lactationNumber: 1,
-      lactationDay: 55, // Pik verim dönemi
+      lactationDay: 55,
       milkYieldTodayL: 38.5,
       totalMilkYieldL: 2100,
       scc: 95000,
       fatPct: 3.75,
       proteinPct: 3.22,
+      ikasMilkLockHours: 0,
+      ikasMeatLockDays: 0,
+      activeDrugName: null,
+      isMilkIsolated: false,
       daysPregnant: 40,
       inseminationCount: 1,
       lastCalvingDay: -55,
       dryPeriodDays: 0,
+      scourVaccineGiven: false,
       colostrumReceived: true,
+      colostrumBrixPct: 24.5,
       sireId: 'bull_titan',
       damId: null,
       inbreedingCoeff: 0.0,
@@ -63,6 +69,8 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       activeIllnesses: [],
       bcs: 3.3,
       weightKg: 690,
+      heartGirthCm: 210,
+      bodyLengthCm: 168,
       locomotionScore: 1,
       appetitePct: 100,
       bodyTempC: 38.5,
@@ -73,11 +81,17 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 120000,
       fatPct: 3.7,
       proteinPct: 3.2,
+      ikasMilkLockHours: 0,
+      ikasMeatLockDays: 0,
+      activeDrugName: null,
+      isMilkIsolated: false,
       daysPregnant: 70,
       inseminationCount: 1,
       lastCalvingDay: -90,
       dryPeriodDays: 0,
+      scourVaccineGiven: false,
       colostrumReceived: true,
+      colostrumBrixPct: 25.0,
       sireId: 'bull_maximus',
       damId: null,
       inbreedingCoeff: 0.0,
@@ -101,6 +115,8 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       activeIllnesses: [],
       bcs: 3.1,
       weightKg: 650,
+      heartGirthCm: 202,
+      bodyLengthCm: 162,
       locomotionScore: 1,
       appetitePct: 100,
       bodyTempC: 38.7,
@@ -111,11 +127,17 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 135000,
       fatPct: 3.8,
       proteinPct: 3.25,
+      ikasMilkLockHours: 0,
+      ikasMeatLockDays: 0,
+      activeDrugName: null,
+      isMilkIsolated: false,
       daysPregnant: 120,
       inseminationCount: 2,
       lastCalvingDay: -180,
       dryPeriodDays: 0,
+      scourVaccineGiven: false,
       colostrumReceived: true,
+      colostrumBrixPct: 23.0,
       sireId: 'bull_titan',
       damId: null,
       inbreedingCoeff: 0.0,
@@ -127,7 +149,6 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       behaviorTimer: 15,
       events: [],
     },
-    // Jersey İnekleri (Yüksek Yağ & Protein)
     {
       id: 'cow_4',
       name: 'Buttercup',
@@ -140,6 +161,8 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       activeIllnesses: [],
       bcs: 3.4,
       weightKg: 460,
+      heartGirthCm: 178,
+      bodyLengthCm: 150,
       locomotionScore: 1,
       appetitePct: 100,
       bodyTempC: 38.6,
@@ -150,11 +173,17 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 80000,
       fatPct: 5.2,
       proteinPct: 3.95,
+      ikasMilkLockHours: 0,
+      ikasMeatLockDays: 0,
+      activeDrugName: null,
+      isMilkIsolated: false,
       daysPregnant: 30,
       inseminationCount: 1,
       lastCalvingDay: -60,
       dryPeriodDays: 0,
+      scourVaccineGiven: false,
       colostrumReceived: true,
+      colostrumBrixPct: 26.0,
       sireId: 'bull_copper',
       damId: null,
       inbreedingCoeff: 0.0,
@@ -167,94 +196,19 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       events: [],
     },
     {
-      id: 'cow_5',
-      name: 'Caramel',
-      tagNumber: 105,
-      breedId: 'jersey',
-      birthDay: -1050,
-      ageMonths: 35,
-      state: 'lactating',
-      health: 'healthy',
-      activeIllnesses: [],
-      bcs: 3.5,
-      weightKg: 475,
-      locomotionScore: 1,
-      appetitePct: 100,
-      bodyTempC: 38.5,
-      lactationNumber: 2,
-      lactationDay: 140,
-      milkYieldTodayL: 24.0,
-      totalMilkYieldL: 6200,
-      scc: 110000,
-      fatPct: 5.1,
-      proteinPct: 3.9,
-      daysPregnant: 90,
-      inseminationCount: 1,
-      lastCalvingDay: -140,
-      dryPeriodDays: 0,
-      colostrumReceived: true,
-      sireId: 'bull_amber',
-      damId: null,
-      inbreedingCoeff: 0.0,
-      genomicTested: false,
-      genomicYieldPotential: 1.04,
-      position: [12, 0, 8],
-      rotationY: 0.8,
-      behaviorState: 'grazing',
-      behaviorTimer: 45,
-      events: [],
-    },
-    // Simmental Çift Amaçlı
-    {
-      id: 'cow_6',
-      name: 'Heidi',
-      tagNumber: 106,
-      breedId: 'simmental',
-      birthDay: -850,
-      ageMonths: 28,
-      state: 'lactating',
-      health: 'healthy',
-      activeIllnesses: [],
-      bcs: 3.6,
-      weightKg: 710,
-      locomotionScore: 1,
-      appetitePct: 100,
-      bodyTempC: 38.6,
-      lactationNumber: 1,
-      lactationDay: 110,
-      milkYieldTodayL: 29.5,
-      totalMilkYieldL: 3200,
-      scc: 90000,
-      fatPct: 4.1,
-      proteinPct: 3.45,
-      daysPregnant: 50,
-      inseminationCount: 1,
-      lastCalvingDay: -110,
-      dryPeriodDays: 0,
-      colostrumReceived: true,
-      sireId: 'bull_bavaria',
-      damId: null,
-      inbreedingCoeff: 0.0,
-      genomicTested: true,
-      genomicYieldPotential: 1.09,
-      position: [15, 0, -10],
-      rotationY: 2.1,
-      behaviorState: 'grazing',
-      behaviorTimer: 35,
-      events: [],
-    },
-    {
       id: 'cow_7',
       name: 'Freya',
       tagNumber: 107,
       breedId: 'simmental',
       birthDay: -1200,
       ageMonths: 40,
-      state: 'dry', // Kuru dönemde!
+      state: 'dry',
       health: 'healthy',
       activeIllnesses: [],
       bcs: 3.65,
       weightKg: 730,
+      heartGirthCm: 216,
+      bodyLengthCm: 170,
       locomotionScore: 1,
       appetitePct: 100,
       bodyTempC: 38.5,
@@ -265,11 +219,17 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 85000,
       fatPct: 4.0,
       proteinPct: 3.4,
-      daysPregnant: 260, // 20 gün sonra doğum yapacak!
+      ikasMilkLockHours: 0,
+      ikasMeatLockDays: 0,
+      activeDrugName: null,
+      isMilkIsolated: false,
+      daysPregnant: 260, // 283 günlük çarka göre 23 gün sonra doğuracak!
       inseminationCount: 1,
       lastCalvingDay: -325,
-      dryPeriodDays: 20,
+      dryPeriodDays: 23,
+      scourVaccineGiven: true, // 250. gün aşısı yapılmış
       colostrumReceived: true,
+      colostrumBrixPct: 25.5,
       sireId: 'bull_edelweiss',
       damId: null,
       inbreedingCoeff: 0.0,
@@ -279,209 +239,61 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       rotationY: -0.2,
       behaviorState: 'resting',
       behaviorTimer: 50,
-      events: [{ day: 1, type: 'dry_off', notes: 'Kuru dönem dinlenmesinde.' }],
-    },
-    // Brown Swiss (Montofon)
-    {
-      id: 'cow_8',
-      name: 'Greta',
-      tagNumber: 108,
-      breedId: 'brown_swiss',
-      birthDay: -900,
-      ageMonths: 30,
-      state: 'lactating',
-      health: 'healthy',
-      activeIllnesses: [],
-      bcs: 3.5,
-      weightKg: 685,
-      locomotionScore: 1,
-      appetitePct: 100,
-      bodyTempC: 38.6,
-      lactationNumber: 1,
-      lactationDay: 80,
-      milkYieldTodayL: 28.0,
-      totalMilkYieldL: 2200,
-      scc: 75000,
-      fatPct: 4.05,
-      proteinPct: 3.55,
-      daysPregnant: 60,
-      inseminationCount: 1,
-      lastCalvingDay: -80,
-      dryPeriodDays: 0,
-      colostrumReceived: true,
-      sireId: 'bull_alpin',
-      damId: null,
-      inbreedingCoeff: 0.0,
-      genomicTested: true,
-      genomicYieldPotential: 1.10,
-      position: [10, 0, 2],
-      rotationY: 1.7,
-      behaviorState: 'eating',
-      behaviorTimer: 20,
-      events: [],
-    },
-    // Gebe Düve
-    {
-      id: 'cow_9',
-      name: 'Molly',
-      tagNumber: 109,
-      breedId: 'holstein',
-      birthDay: -570,
-      ageMonths: 19,
-      state: 'pregnant_heifer',
-      health: 'healthy',
-      activeIllnesses: [],
-      bcs: 3.4,
-      weightKg: 540,
-      locomotionScore: 1,
-      appetitePct: 100,
-      bodyTempC: 38.6,
-      lactationNumber: 0,
-      lactationDay: 0,
-      milkYieldTodayL: 0,
-      totalMilkYieldL: 0,
-      scc: 40000,
-      fatPct: 3.7,
-      proteinPct: 3.2,
-      daysPregnant: 150,
-      inseminationCount: 1,
-      lastCalvingDay: null,
-      dryPeriodDays: 0,
-      colostrumReceived: true,
-      sireId: 'bull_titan',
-      damId: 'cow_1',
-      inbreedingCoeff: 0.0,
-      genomicTested: true,
-      genomicYieldPotential: 1.14,
-      position: [18, 0, 5],
-      rotationY: -2.3,
-      behaviorState: 'grazing',
-      behaviorTimer: 40,
-      events: [],
-    },
-    // Buzağılar (Calves)
-    {
-      id: 'cow_10',
-      name: 'Nisa',
-      tagNumber: 110,
-      breedId: 'holstein',
-      birthDay: -25,
-      ageMonths: 0,
-      state: 'calf',
-      health: 'healthy',
-      activeIllnesses: [],
-      bcs: 3.3,
-      weightKg: 52,
-      locomotionScore: 1,
-      appetitePct: 100,
-      bodyTempC: 38.7,
-      lactationNumber: 0,
-      lactationDay: 0,
-      milkYieldTodayL: 0,
-      totalMilkYieldL: 0,
-      scc: 30000,
-      fatPct: 3.7,
-      proteinPct: 3.2,
-      daysPregnant: 0,
-      inseminationCount: 0,
-      lastCalvingDay: null,
-      dryPeriodDays: 0,
-      colostrumReceived: true,
-      sireId: 'bull_maximus',
-      damId: 'cow_2',
-      inbreedingCoeff: 0.0,
-      genomicTested: false,
-      genomicYieldPotential: 1.16,
-      position: [24, 0, -18], // Buzağı kulübesi alanı
-      rotationY: 0.5,
-      behaviorState: 'resting',
-      behaviorTimer: 30,
-      events: [{ day: 1, type: 'birth', notes: 'Sağlıklı dişi buzağı. Kolostrum verildi.' }],
-    },
-    {
-      id: 'cow_11',
-      name: 'Baron',
-      tagNumber: 111,
-      breedId: 'simmental',
-      birthDay: -45,
-      ageMonths: 1,
-      state: 'calf',
-      health: 'healthy',
-      activeIllnesses: [],
-      bcs: 3.4,
-      weightKg: 75,
-      locomotionScore: 1,
-      appetitePct: 100,
-      bodyTempC: 38.6,
-      lactationNumber: 0,
-      lactationDay: 0,
-      milkYieldTodayL: 0,
-      totalMilkYieldL: 0,
-      scc: 30000,
-      fatPct: 4.0,
-      proteinPct: 3.4,
-      daysPregnant: 0,
-      inseminationCount: 0,
-      lastCalvingDay: null,
-      dryPeriodDays: 0,
-      colostrumReceived: true,
-      sireId: 'bull_bavaria',
-      damId: 'cow_6',
-      inbreedingCoeff: 0.0,
-      genomicTested: false,
-      genomicYieldPotential: 1.08,
-      position: [28, 0, -18],
-      rotationY: -0.7,
-      behaviorState: 'resting',
-      behaviorTimer: 30,
-      events: [],
+      events: [
+        { day: 1, type: 'dry_off', notes: 'Kuru dönem dinlenmesinde.' },
+        { day: 1, type: 'scour_vaccine_250d', notes: 'Buzağı ishal aşısı tamamlandı.' },
+      ],
     },
   ];
 
-  // Ek 7 inek daha ekleyerek 18'e tamamlayalım (çeşitli aşamalarda)
-  const additionalNames = ['Alina', 'Clara', 'Dora', 'Emma', 'Gemma', 'Klara', 'Sindy'];
+  // 12 inek daha ekleyerek 17'ye tamamla
+  const additionalNames = ['Alina', 'Clara', 'Dora', 'Emma', 'Gemma', 'Klara', 'Sindy', 'Narin', 'Ceren', 'Bahar', 'Gülizar', 'Yıldız'];
   const breedsList = ['holstein', 'jersey', 'simmental', 'brown_swiss'];
 
   additionalNames.forEach((name, idx) => {
     const breedId = breedsList[idx % breedsList.length];
     const b = DEFAULT_BREEDS.find((item) => item.id === breedId)!;
     initialCows.push({
-      id: `cow_add_${idx + 12}`,
+      id: `cow_add_${idx + 10}`,
       name,
-      tagNumber: 112 + idx,
+      tagNumber: 110 + idx,
       breedId,
-      birthDay: -900 - idx * 60,
-      ageMonths: 30 + idx * 2,
+      birthDay: -850 - idx * 45,
+      ageMonths: 28 + idx,
       state: 'lactating',
       health: 'healthy',
       activeIllnesses: [],
-      bcs: 3.2 + (idx % 3) * 0.1,
+      bcs: 3.25 + (idx % 3) * 0.1,
       weightKg: b.adultWeightKg - 20 + idx * 5,
+      heartGirthCm: 200 + idx * 2,
+      bodyLengthCm: 160 + idx,
       locomotionScore: 1,
       appetitePct: 100,
       bodyTempC: 38.6,
       lactationNumber: (idx % 2) + 1,
-      lactationDay: 30 + idx * 35,
-      milkYieldTodayL: Math.round(b.dailyMilkPeak * 0.85 * 10) / 10,
-      totalMilkYieldL: 3000 + idx * 800,
-      scc: 100000 + idx * 15000,
+      lactationDay: 40 + idx * 25,
+      milkYieldTodayL: Math.round(b.dailyMilkPeak * 0.88 * 10) / 10,
+      totalMilkYieldL: 2800 + idx * 600,
+      scc: 90000 + idx * 10000,
       fatPct: b.fatPct,
       proteinPct: b.proteinPct,
-      daysPregnant: idx * 25,
+      ikasMilkLockHours: 0,
+      ikasMeatLockDays: 0,
+      activeDrugName: null,
+      isMilkIsolated: false,
+      daysPregnant: idx * 22,
       inseminationCount: 1,
-      lastCalvingDay: -(30 + idx * 35),
+      lastCalvingDay: -(40 + idx * 25),
       dryPeriodDays: 0,
+      scourVaccineGiven: false,
       colostrumReceived: true,
+      colostrumBrixPct: 24.0,
       sireId: AI_BULLS_CATALOG[idx % AI_BULLS_CATALOG.length].id,
       damId: null,
       inbreedingCoeff: 0.0,
       genomicTested: false,
-      genomicYieldPotential: 1.05 + (idx % 4) * 0.03,
-      position: [
-        -14 + (idx % 4) * 6,
-        0,
-        -10 + Math.floor(idx / 4) * 8,
-      ],
+      genomicYieldPotential: 1.06 + (idx % 3) * 0.03,
+      position: [-14 + (idx % 4) * 6, 0, -10 + Math.floor(idx / 4) * 8],
       rotationY: Math.random() * Math.PI * 2,
       behaviorState: 'resting',
       behaviorTimer: 30,
@@ -492,22 +304,29 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
   const optimalRation = generateOptimalRation(30);
 
   const initialFeedStock: Record<FeedId, number> = {
-    corn_silage: 28000,   // kg
-    alfalfa_hay: 12000,
+    corn_silage: 32000,
+    alfalfa_hay: 14000,
     pasture_grass: 8000,
+    wheat_straw: 6000,
+    ryegrass_silage: 8500,
+    beet_pulp_silage: 7000,
+    brewer_grain: 4500,
     concentrate: 9500,
+    smart_dairy_21: 5000,
+    dry_cow_feed_14: 3000,
+    calf_starter_18: 2000,
     soybean_meal: 3500,
     ground_corn: 4000,
-    mineral_premix: 450,
+    mineral_premix: 500,
   };
 
   const initialWeather = generateDailyWeather(1, 'spring');
 
   return {
-    version: '1.0.0',
-    farmName: 'Green Meadows Dairy',
+    version: '1.1.0',
+    farmName: 'Tosun Paşa Süt Çiftliği',
     day: 1,
-    hour: 7.0, // Sabah sağımı saati
+    hour: 7.0,
     season: 'spring',
     weather: initialWeather.weather,
     temperatureC: initialWeather.temperatureC,
@@ -517,7 +336,7 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
 
     cash: startingCash,
     debt: initialDebt,
-    loanInterestRate: 0.065, // %6.5 yıllık
+    loanInterestRate: 0.065,
     historicalFinancials: [],
 
     market: {
@@ -526,7 +345,14 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
         corn_silage: 0.08,
         alfalfa_hay: 0.22,
         pasture_grass: 0.10,
+        wheat_straw: 0.06,
+        ryegrass_silage: 0.11,
+        beet_pulp_silage: 0.07,
+        brewer_grain: 0.10,
         concentrate: 0.38,
+        smart_dairy_21: 0.44,
+        dry_cow_feed_14: 0.32,
+        calf_starter_18: 0.42,
         soybean_meal: 0.52,
         ground_corn: 0.28,
         mineral_premix: 1.20,
@@ -557,9 +383,10 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       totalExpenses: 0,
       calvesBorn: 0,
       cowsCulled: 0,
-      averageScc: 110000,
+      averageScc: 105000,
       averageBcs: 3.3,
-      calvingIntervalDays: 380,
+      calvingIntervalDays: 382,
+      ikasLockBreaches: 0,
     },
   };
 }
@@ -575,13 +402,10 @@ export function tickFarmSimulation(
     return { newState: state, newNotifications: [] };
   }
 
-  // Kopya üret
   const next: FarmState = JSON.parse(JSON.stringify(state));
   const notifications: NotificationItem[] = [];
 
-  // Zaman ilerletme: 1 gerçek saniye 1x hızda 60 oyun saniyesi = 1 dakika simülasyon
-  // gameSpeed katlar: 4x -> 4 dk/sn, 120x -> 2 saat/sn
-  const simMinutesElapsed = (deltaSeconds * 1.0 * state.gameSpeed);
+  const simMinutesElapsed = deltaSeconds * 1.0 * state.gameSpeed;
   const simHoursElapsed = simMinutesElapsed / 60;
 
   next.hour += simHoursElapsed;
@@ -589,7 +413,7 @@ export function tickFarmSimulation(
     next.vetCooldownMinutes = Math.max(0, next.vetCooldownMinutes - simMinutesElapsed);
   }
 
-  // 3D görsel davranışları güncelle (otlama, gezinme, yatma)
+  // 3D görsel davranışları güncelle
   for (const cow of next.cows) {
     cow.behaviorTimer -= simMinutesElapsed;
     if (cow.behaviorTimer <= 0) {
@@ -597,7 +421,6 @@ export function tickFarmSimulation(
       cow.behaviorState = states[Math.floor(Math.random() * states.length)];
       cow.behaviorTimer = 20 + Math.random() * 40;
 
-      // Hafif pozisyon gezinmesi
       if (cow.behaviorState === 'walking') {
         cow.rotationY = Math.random() * Math.PI * 2;
         cow.position[0] += (Math.random() - 0.5) * 1.5;
@@ -611,14 +434,12 @@ export function tickFarmSimulation(
     next.hour -= 24;
     next.day += 1;
 
-    // 1. Yeni gün hava durumu ve mevsim
     next.season = getSeasonForDay(next.day);
     const dailyWeather = generateDailyWeather(next.day, next.season);
     next.weather = dailyWeather.weather;
     next.temperatureC = dailyWeather.temperatureC;
     next.thiIndex = dailyWeather.thiIndex;
 
-    // 2. Yem rasyonu analizi ve stok tüketimi
     const rationAnalysis = analyzeRation(next.activeRation);
     const lactatingAndDryCows = next.cows.filter((c) => c.state !== 'culled');
     const cowCount = lactatingAndDryCows.length || 1;
@@ -628,7 +449,7 @@ export function tickFarmSimulation(
 
     for (const item of next.activeRation) {
       const totalDailyItemKg = item.kgFreshWeight * cowCount;
-      if (next.feedStockKg[item.feedId] < totalDailyItemKg) {
+      if ((next.feedStockKg[item.feedId] || 0) < totalDailyItemKg) {
         outOfFeed = true;
         notifications.push({
           id: `feed_warn_${next.day}_${item.feedId}`,
@@ -637,18 +458,17 @@ export function tickFarmSimulation(
           type: 'warning',
           titleTr: 'Yem Stoku Tükendi!',
           titleEn: 'Feed Stock Depleted!',
-          messageTr: `${FEED_DATABASE[item.feedId].nameTr} tükendi! Rasyon karşılanamıyor.`,
-          messageEn: `${FEED_DATABASE[item.feedId].nameEn} ran out! Nutrition compromised.`,
+          messageTr: `${FEED_DATABASE[item.feedId]?.nameTr || item.feedId} tükendi! Rasyon karşılanamıyor.`,
+          messageEn: `${FEED_DATABASE[item.feedId]?.nameEn || item.feedId} ran out! Nutrition compromised.`,
           timestamp: Date.now(),
         });
       }
-      next.feedStockKg[item.feedId] = Math.max(0, next.feedStockKg[item.feedId] - totalDailyItemKg);
-      dailyFeedCost += totalDailyItemKg * next.market.feedPrices[item.feedId];
+      next.feedStockKg[item.feedId] = Math.max(0, (next.feedStockKg[item.feedId] || 0) - totalDailyItemKg);
+      dailyFeedCost += totalDailyItemKg * (next.market.feedPrices[item.feedId] || 0.1);
     }
 
     const feedFulfillment = outOfFeed ? 0.6 : Math.min(1.1, rationAnalysis.dryMatterIntakeKg / 22.0);
 
-    // 3. İneklerin günlük ilerlemesi (laktasyon, doğum, yaşlanma)
     const newBornCalves: Cow[] = [];
     const allBreeds = [...DEFAULT_BREEDS, ...next.customBreeds];
 
@@ -670,7 +490,6 @@ export function tickFarmSimulation(
         newBornCalves
       );
 
-      // Sağlık ve hastalık simülasyonu
       const cowBreed = allBreeds.find((b) => b.id === cow.breedId) || DEFAULT_BREEDS[0];
       updateCowHealth(
         cow,
@@ -687,26 +506,40 @@ export function tickFarmSimulation(
       next.stats.calvesBorn += newBornCalves.length;
     }
 
-    // 4. Günlük Süt Hasadı ve Gelir Hesabı
+    // 4. Günlük Süt Hasadı & İKAS Arınma Kontrolü (Tosun Paşa İKAS Kilidi)
     const lactatingCows = next.cows.filter((c) => c.state === 'lactating');
     let totalLiters = 0;
     let sumFat = 0;
     let sumProtein = 0;
     let sumScc = 0;
+    let ikasContamination = false;
+    let contaminatedCowTag = 0;
 
     for (const c of lactatingCows) {
+      // Eğer ineğin süt arınma süresi aktifse
+      if (c.ikasMilkLockHours > 0) {
+        if (!c.isMilkIsolated) {
+          // İnek izole edilmeden sağım hattına verilmiş -> TANK KONTAMİNASYONU!
+          ikasContamination = true;
+          contaminatedCowTag = c.tagNumber;
+        } else {
+          // İnek kovaya sağıldı ve imha edildi. Tanka karışmadı!
+          continue;
+        }
+      }
+
       totalLiters += c.milkYieldTodayL;
       sumFat += c.fatPct;
       sumProtein += c.proteinPct;
       sumScc += c.scc;
     }
 
-    const countLact = lactatingCows.length || 1;
+    const countLact = Math.max(1, lactatingCows.length);
     const avgFat = sumFat / countLact;
     const avgProt = sumProtein / countLact;
     const avgScc = sumScc / countLact;
 
-    const milkPayment = calculateMilkPayment(
+    let milkPayment = calculateMilkPayment(
       totalLiters,
       avgFat,
       avgProt,
@@ -714,6 +547,26 @@ export function tickFarmSimulation(
       next.market.baseMilkPricePerL,
       next.facilities.organicCertified
     );
+
+    let ikasPenalty = 0;
+    if (ikasContamination) {
+      // Süt fabrikası tankı reddetti! Günlük süt geliri sıfırlandı ve €350 imha cezası kesildi!
+      ikasPenalty = 350;
+      milkPayment.grossPayment = 0;
+      next.stats.ikasLockBreaches += 1;
+
+      notifications.push({
+        id: `ikas_breach_${next.day}`,
+        day: next.day,
+        hour: 8,
+        type: 'ikas',
+        titleTr: '🚨 KRİTİK İKAS İHLALİ (SÜT İMHASI)',
+        titleEn: '🚨 CRITICAL WITHDRAWAL BREACH',
+        messageTr: `#${contaminatedCowTag} küpeli antibiyotikli inek tanka sağıldı! Süt fabrikası tankı reddetti, döküldü ve €350 ceza kesildi!`,
+        messageEn: `#${contaminatedCowTag} treated cow contaminated bulk tank! Entire tank dumped & €350 penalty assessed!`,
+        timestamp: Date.now(),
+      });
+    }
 
     // 5. Günlük İşletme Masrafları
     const operatingExpenses = calculateOperatingExpenses(
@@ -724,7 +577,6 @@ export function tickFarmSimulation(
       next.equipment.length
     );
 
-    // Günlük borç faizi: Borç * (faiz / 365)
     const dailyInterest = (next.debt * next.loanInterestRate) / 365;
 
     const totalDayExpense =
@@ -732,12 +584,12 @@ export function tickFarmSimulation(
       operatingExpenses.laborExpense +
       operatingExpenses.energyExpense +
       operatingExpenses.equipmentMaintenance +
-      dailyInterest;
+      dailyInterest +
+      ikasPenalty;
 
     const netProfit = milkPayment.grossPayment - totalDayExpense;
     next.cash += netProfit;
 
-    // Finansal geçmiş kaydı
     const finRecord: FinancialRecord = {
       day: next.day,
       milkRevenue: milkPayment.grossPayment,
@@ -747,21 +599,20 @@ export function tickFarmSimulation(
       vetExpense: 0,
       energyExpense: operatingExpenses.energyExpense,
       loanInterestExpense: Math.round(dailyInterest * 100) / 100,
+      ikasContaminationPenalty: ikasPenalty,
       netProfit: Math.round(netProfit * 100) / 100,
     };
 
     next.historicalFinancials.push(finRecord);
     if (next.historicalFinancials.length > 60) {
-      next.historicalFinancials.shift(); // Son 60 günü sakla
+      next.historicalFinancials.shift();
     }
 
-    // İstatistik güncellemeleri
     next.stats.totalMilkProducedL += totalLiters;
     next.stats.totalRevenue += milkPayment.grossPayment;
     next.stats.totalExpenses += totalDayExpense;
     next.stats.averageScc = Math.round(avgScc);
 
-    // İflas uyarısı kontrolü
     if (next.cash < -20000 && next.debt > 50000) {
       notifications.push({
         id: `bankruptcy_${next.day}`,
@@ -776,7 +627,6 @@ export function tickFarmSimulation(
       });
     }
 
-    // Hijyen güncellemesi (gübre sıyırıcı çalışıyorsa hijyen korunur, yoksa düşer)
     if (next.facilities.manureScraperActive) {
       next.facilities.cleanlinessScore = Math.min(0.96, next.facilities.cleanlinessScore + 0.02);
     } else {

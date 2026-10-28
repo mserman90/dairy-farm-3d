@@ -9,6 +9,7 @@ export const tr = {
     feeding: 'Besleme & TMR (Feeding)',
     milking: 'Sağım & Süt (Milking)',
     health: 'Sağlık & Veteriner (Health)',
+    reproWheel: 'İnek Çarkı (Repro Wheel)',
     housing: 'Barınak & Altyapı (Housing)',
     finance: 'Finans & Ekonomi (Finance)',
     breedLab: 'Irk Mühendisi (Breed Lab)',

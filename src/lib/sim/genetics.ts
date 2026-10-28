@@ -138,6 +138,12 @@ export function performCalving(
         notes: `Dünyaya geldi. Doğum ağırlığı: ${Math.round(birthWeight)} kg. Anne: #${dam.tagNumber}.`,
       },
     ],
+    ikasMilkLockHours: 0,
+    ikasMeatLockDays: 0,
+    activeDrugName: null,
+    isMilkIsolated: false,
+    colostrumBrixPct: 22,
+    scourVaccineGiven: false,
   };
 
   const damNotesTr = `#${dam.tagNumber} ${dam.name} sağlıklı bir ${isFemale ? 'dişi' : 'erkek'} buzağı doğurdu!`;

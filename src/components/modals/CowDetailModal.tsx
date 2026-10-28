@@ -2,19 +2,21 @@ import React, { useState } from 'react';
 import {
   X,
   Dna,
-  HeartPulse,
   Activity,
-  Milk,
-  Award,
-  Sparkles,
   Scissors,
   CheckCircle,
   AlertTriangle,
+  Clock,
+  Compass,
+  Scale,
+  ShieldAlert,
+  Droplet,
 } from 'lucide-react';
 import { useFarmStore } from '../../store/useFarmStore';
 import { getTranslation } from '../../locales/i18n';
 import { AI_BULLS_CATALOG, DEFAULT_BREEDS } from '../../lib/sim/constants';
 import { computeWoodParams, generateLactationCurvePoints } from '../../lib/sim/woodCurve';
+import { evaluateColostrumBrix } from '../../lib/sim/health';
 
 export const CowDetailModal: React.FC = () => {
   const {
@@ -22,14 +24,19 @@ export const CowDetailModal: React.FC = () => {
     language,
     selectedCowId,
     setSelectedCowId,
+    setActiveModal,
     inseminateCow,
     treatCowAction,
     cullCowAction,
     feedColostrumAction,
     genomicTestAction,
+    toggleMilkIsolationAction,
+    updateBovineMeasurements,
   } = useFarmStore();
 
   const [selectedBullId, setSelectedBullId] = useState(AI_BULLS_CATALOG[0].id);
+  const [heartGirth, setHeartGirth] = useState<number>(205);
+  const [bodyLength, setBodyLength] = useState<number>(165);
 
   if (!selectedCowId) return null;
   const cow = farm.cows.find((c) => c.id === selectedCowId);
@@ -39,11 +46,9 @@ export const CowDetailModal: React.FC = () => {
   const allBreeds = [...DEFAULT_BREEDS, ...farm.customBreeds];
   const breed = allBreeds.find((b) => b.id === cow.breedId) || DEFAULT_BREEDS[0];
 
-  // Sire & Dam lookups
   const sire = AI_BULLS_CATALOG.find((b) => b.id === cow.sireId);
   const dam = cow.damId ? farm.cows.find((c) => c.id === cow.damId) : null;
 
-  // Generate Wood Lactation Curve Points
   const woodParams = computeWoodParams(
     breed.dailyMilkPeak,
     cow.lactationNumber,
@@ -52,7 +57,6 @@ export const CowDetailModal: React.FC = () => {
   const curvePoints = generateLactationCurvePoints(woodParams, 35);
   const maxYield = Math.max(...curvePoints.map((p) => p.yieldL), 45);
 
-  // SVG dimensions for lactation chart
   const svgWidth = 460;
   const svgHeight = 160;
   const padding = 30;
@@ -69,6 +73,8 @@ export const CowDetailModal: React.FC = () => {
 
   const currentDimX = getSvgX(Math.min(305, Math.max(1, cow.lactationDay)));
   const currentDimY = getSvgY(cow.milkYieldTodayL);
+
+  const brixEval = evaluateColostrumBrix(cow.colostrumBrixPct || 22);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
@@ -109,6 +115,46 @@ export const CowDetailModal: React.FC = () => {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Canlı İKAS Arınma Süresi Banner'ı (Tosun Paşa Sistemi) */}
+        {(cow.ikasMilkLockHours > 0 || cow.ikasMeatLockDays > 0) && (
+          <div className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-600 shadow flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-rose-300 font-bold text-xs uppercase tracking-wider">
+                <ShieldAlert className="w-4 h-4 text-rose-400 animate-bounce" />
+                <span>⚠️ CANLI İKAS ARINMA KİLİDİ AKTİF!</span>
+              </div>
+              <span className="text-[11px] font-mono text-rose-200 bg-rose-900/80 px-2 py-0.5 rounded border border-rose-700">
+                {cow.activeDrugName || 'Tedavi Uygulandı'}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="text-rose-200">
+                <span>🥛 Süt Arınma Kilidi: </span>
+                <strong className="text-white font-mono font-bold">
+                  {Math.ceil(cow.ikasMilkLockHours)} saat kaldı
+                </strong>
+                {cow.ikasMeatLockDays > 0 && (
+                  <span className="ml-3">
+                    🥩 Et Arınması: <strong>{Math.ceil(cow.ikasMeatLockDays)} gün</strong>
+                  </span>
+                )}
+              </div>
+
+              <button
+                onClick={() => toggleMilkIsolationAction(cow.id)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition shadow ${
+                  cow.isMilkIsolated
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    : 'bg-rose-700 hover:bg-rose-600 text-white animate-pulse'
+                }`}
+              >
+                {cow.isMilkIsolated ? '✓ Ayrı Kovaya Sağılıyor (Güvenli)' : '⚠️ Tanka Karışma Riski! (İzole Et)'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Vital KPIs Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -152,18 +198,62 @@ export const CowDetailModal: React.FC = () => {
             <div className="text-[10px] text-slate-400">Meme Sağlığı</div>
           </div>
 
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <div className="text-[10px] uppercase font-semibold text-slate-400">
-              {t.cowDetail.daysPregnant}
-            </div>
-            <div className="text-lg font-bold font-mono text-purple-300 mt-1">
-              {cow.daysPregnant > 0 ? `${cow.daysPregnant} g` : 'Açık / Gebe Değil'}
+          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div className="text-[10px] uppercase font-semibold text-slate-400 flex items-center justify-between">
+                <span>{t.cowDetail.daysPregnant}</span>
+                {cow.daysPregnant > 0 && (
+                  <button
+                    onClick={() => setActiveModal('reproWheel')}
+                    className="text-amber-400 hover:text-amber-300 text-[10px] font-bold flex items-center gap-0.5"
+                  >
+                    <Compass className="w-3 h-3" /> Çark
+                  </button>
+                )}
+              </div>
+              <div className="text-lg font-bold font-mono text-purple-300 mt-1">
+                {cow.daysPregnant > 0 ? `${cow.daysPregnant} / 283 g` : 'Açık / Gebe Değil'}
+              </div>
             </div>
             <div className="text-[10px] text-slate-400">
               Laktasyon: {cow.lactationNumber}. (Gün {cow.lactationDay})
             </div>
           </div>
         </div>
+
+        {/* Tosun Paşa Kolostrum Brix Skalası (Buzağılar veya taze inekler için) */}
+        {cow.colostrumBrixPct > 0 && (
+          <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs"
+                style={{ backgroundColor: brixEval.color }}
+              >
+                %{cow.colostrumBrixPct}
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-100 flex items-center gap-1.5">
+                  <Droplet className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Brix Refraktometre Kolostrum Testi</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {brixEval.statusTr} ({brixEval.iggMgPerMl})
+                </p>
+              </div>
+            </div>
+
+            <span
+              className="px-2.5 py-1 rounded-lg text-[10px] font-bold border"
+              style={{
+                color: brixEval.color,
+                borderColor: brixEval.color,
+                backgroundColor: 'rgba(0,0,0,0.3)',
+              }}
+            >
+              {brixEval.quality.toUpperCase()}
+            </span>
+          </div>
+        )}
 
         {/* Wood Lactation Curve Chart */}
         {cow.state === 'lactating' && (
@@ -180,7 +270,6 @@ export const CowDetailModal: React.FC = () => {
 
             <div className="w-full overflow-x-auto flex justify-center">
               <svg width={svgWidth} height={svgHeight} className="overflow-visible">
-                {/* Grid lines */}
                 <line
                   x1={padding}
                   y1={svgHeight - padding}
@@ -198,10 +287,7 @@ export const CowDetailModal: React.FC = () => {
                   strokeWidth="1"
                 />
 
-                {/* Wood Curve Path */}
                 <path d={pathD} fill="none" stroke="#10b981" strokeWidth="2.5" />
-
-                {/* Fill area beneath curve */}
                 <path
                   d={`${pathD} L ${svgWidth - padding} ${svgHeight - padding} L ${padding} ${
                     svgHeight - padding
@@ -209,7 +295,6 @@ export const CowDetailModal: React.FC = () => {
                   fill="rgba(16, 185, 129, 0.12)"
                 />
 
-                {/* Current DIM point marker */}
                 <circle
                   cx={currentDimX}
                   cy={currentDimY}
@@ -229,7 +314,6 @@ export const CowDetailModal: React.FC = () => {
                   Bugün: {cow.milkYieldTodayL}L
                 </text>
 
-                {/* Day Labels */}
                 <text x={padding} y={svgHeight - 10} fill="#64748b" fontSize="10">
                   0g
                 </text>
@@ -246,6 +330,52 @@ export const CowDetailModal: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Baskülsüz Canlı Ağırlık (CAAG) Hesaplayıcı (Tosun Paşa) */}
+        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-200">
+            <span className="flex items-center gap-1.5">
+              <Scale className="w-4 h-4 text-emerald-400" />
+              Baskülsüz Canlı Ağırlık (CAAG) Tahmini
+            </span>
+            <span className="text-slate-400 font-mono text-[11px]">
+              Formül: (Göğüs² × Uzunluk) / 10838
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end text-xs">
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">
+                Göğüs Çevresi (cm):
+              </label>
+              <input
+                type="number"
+                value={heartGirth}
+                onChange={(e) => setHeartGirth(Number(e.target.value) || 0)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-center text-cyan-300 font-mono font-bold"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">
+                Vücut Uzunluğu (cm):
+              </label>
+              <input
+                type="number"
+                value={bodyLength}
+                onChange={(e) => setBodyLength(Number(e.target.value) || 0)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-center text-cyan-300 font-mono font-bold"
+              />
+            </div>
+
+            <button
+              onClick={() => updateBovineMeasurements(cow.id, heartGirth, bodyLength)}
+              className="py-1.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold transition shadow text-xs"
+            >
+              Hesapla & Kaydet ({Math.round((Math.pow(heartGirth, 2) * bodyLength) / 10838)} kg)
+            </button>
+          </div>
+        </div>
 
         {/* Pedigree & Genetics */}
         <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 flex flex-col gap-3">
@@ -332,7 +462,7 @@ export const CowDetailModal: React.FC = () => {
                 </div>
                 <button
                   onClick={() => treatCowAction(cow.id, ill.type)}
-                  className="px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-semibold transition"
+                  className="px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-semibold transition shadow"
                 >
                   {t.herd.treat}
                 </button>
@@ -347,7 +477,7 @@ export const CowDetailModal: React.FC = () => {
             <div>
               <h4 className="font-bold text-amber-200">Ağız Sütü (Kolostrum) Bekliyor</h4>
               <p className="text-slate-400 mt-0.5">
-                İlk 2 saat içinde kolostrum verilmezse buzağının bağışıklığı ve yaşam şansı hızla düşer.
+                Brix Refraktometre Değeri: %{cow.colostrumBrixPct || 24} ({brixEval.statusTr}). İlk 2 saatte 4L verilmelidir.
               </p>
             </div>
             <button
@@ -361,7 +491,6 @@ export const CowDetailModal: React.FC = () => {
 
         {/* Action Bar (Insemination / Cull) */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4">
-          {/* AI Bull Selection & Inseminate */}
           {(cow.state === 'heifer' || (cow.state === 'lactating' && cow.daysPregnant === 0)) && (
             <div className="flex items-center gap-2">
               <select
@@ -384,7 +513,6 @@ export const CowDetailModal: React.FC = () => {
             </div>
           )}
 
-          {/* Cull button */}
           <button
             onClick={() => {
               if (

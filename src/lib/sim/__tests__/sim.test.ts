@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { computeWoodParams, calculateDailyMilkYield } from '../woodCurve.js';
 import { analyzeRation, generateOptimalRation } from '../nutrition.js';
 import { calculateInbreedingCoeff, attemptInsemination } from '../genetics.js';
-import { updateCowHealth, treatCow } from '../health.js';
+import { updateCowHealth, treatCow, evaluateColostrumBrix } from '../health.js';
 import { calculateMilkPayment } from '../economy.js';
 import { DEFAULT_BREEDS, AI_BULLS_CATALOG } from '../constants.js';
 import { Cow, Breed } from '../types.js';
@@ -99,6 +99,12 @@ test('Genetics: Inbreeding calculation & Heat stress impact on AI', () => {
     behaviorState: 'resting',
     behaviorTimer: 30,
     events: [],
+    ikasMilkLockHours: 0,
+    ikasMeatLockDays: 0,
+    activeDrugName: null,
+    isMilkIsolated: false,
+    colostrumBrixPct: 22,
+    scourVaccineGiven: false,
   };
 
   const inbreeding = calculateInbreedingCoeff(cow, sire, [cow]);
@@ -118,4 +124,102 @@ test('Milk Economics: pricing penalties and premiums', () => {
   // Organic bonus (+30%)
   const organic = calculateMilkPayment(1000, 3.8, 3.2, 120000, 0.42, true);
   assert.ok(organic.unitPricePerL > standard.unitPricePerL * 1.25, 'Organic milk must include +30% premium');
+});
+
+test('Tosun Paşa: Brix Refractometer Colostrum Quality Scale', () => {
+  const highQuality = evaluateColostrumBrix(24);
+  assert.equal(highQuality.quality, 'excellent');
+  assert.equal(highQuality.iggMgPerMl, '> 50 mg/ml');
+
+  const midQuality = evaluateColostrumBrix(20);
+  assert.equal(midQuality.quality, 'moderate');
+  assert.equal(midQuality.iggMgPerMl, '30 - 50 mg/ml');
+
+  const lowQuality = evaluateColostrumBrix(16);
+  assert.equal(lowQuality.quality, 'poor');
+  assert.equal(lowQuality.iggMgPerMl, '< 30 mg/ml');
+});
+
+test('Tosun Paşa: İKAS Milk and Meat Withdrawal Lock Enforcement', () => {
+  const sickCow: Cow = {
+    id: 'cow_mastitis',
+    name: 'Sarıkız',
+    tagNumber: 101,
+    breedId: 'holstein',
+    birthDay: -900,
+    ageMonths: 30,
+    state: 'lactating',
+    health: 'clinical',
+    activeIllnesses: [{
+      type: 'mastitis',
+      healthState: 'clinical',
+      daysActive: 0.5,
+      severity: 0.8,
+      hoursUntilPermanentDamage: 36,
+    }],
+    bcs: 3.25,
+    weightKg: 620,
+    locomotionScore: 1,
+    appetitePct: 70,
+    bodyTempC: 39.4,
+    lactationNumber: 2,
+    lactationDay: 40,
+    milkYieldTodayL: 20,
+    totalMilkYieldL: 1200,
+    scc: 750000,
+    fatPct: 3.6,
+    proteinPct: 3.1,
+    daysPregnant: 0,
+    inseminationCount: 0,
+    lastCalvingDay: -40,
+    dryPeriodDays: 0,
+    colostrumReceived: true,
+    sireId: null,
+    damId: null,
+    inbreedingCoeff: 0,
+    genomicTested: false,
+    genomicYieldPotential: 1.0,
+    position: [0, 0, 0],
+    rotationY: 0,
+    behaviorState: 'resting',
+    behaviorTimer: 10,
+    events: [],
+    ikasMilkLockHours: 0,
+    ikasMeatLockDays: 0,
+    activeDrugName: null,
+    isMilkIsolated: false,
+    colostrumBrixPct: 22,
+    scourVaccineGiven: false,
+  };
+
+  // Treat mastitis -> should trigger 72h milk lock and 28d meat lock
+  const treatment = treatCow(sickCow, 'mastitis', 10);
+  assert.equal(treatment.success, true);
+  assert.equal(treatment.milkLockHours, 72);
+  assert.equal(treatment.meatLockDays, 28);
+  assert.equal(sickCow.ikasMilkLockHours, 72);
+  assert.equal(sickCow.ikasMeatLockDays, 28);
+  assert.ok(sickCow.activeDrugName?.includes('Sefalosporin'));
+
+  // Updating health for 24 simulated hours should reduce milk lock to 48h
+  const dummyBreed: Breed = {
+    id: 'holstein',
+    name: 'Holstein',
+    origin: 'Hollanda',
+    dailyMilkPeak: 40,
+    fatPct: 3.7,
+    proteinPct: 3.2,
+    hardiness: 0.7,
+    adultWeightKg: 650,
+    diseaseResistance: { mastitis: 0.5, laminitis: 0.5, ketosis: 0.5 },
+    heatTolerance: 0.5,
+    calvingEase: 0.5,
+    coatColor: '#ffffff',
+    spotColor: '#1e293b',
+    hasHorns: false,
+  };
+
+  updateCowHealth(sickCow, dummyBreed, 90, 0, 24, false);
+  assert.equal(sickCow.ikasMilkLockHours, 48);
+  assert.equal(sickCow.ikasMeatLockDays, 27);
 });

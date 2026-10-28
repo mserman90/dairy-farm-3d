@@ -27,7 +27,8 @@ export type ModalType =
   | 'housing'
   | 'finance'
   | 'breedLab'
-  | 'settings';
+  | 'settings'
+  | 'reproWheel'; // Tosun Paşa 283 Günlük İnek Çarkı Modalı
 
 interface FarmStore {
   farm: FarmState;
@@ -49,13 +50,14 @@ interface FarmStore {
   toggleZenMode: () => void;
   setCameraPreset: (preset: number) => void;
 
-  // Farm Business Operations
+  // Farm Operations
   updateRation: (items: RationItem[]) => void;
   toggleRationAutoMode: (auto: boolean) => void;
   buyFeedStock: (feedId: FeedId, kg: number) => boolean;
 
   inseminateCow: (cowId: string, bullId: string) => boolean;
   treatCowAction: (cowId: string, diseaseType: DiseaseType) => boolean;
+  toggleMilkIsolationAction: (cowId: string) => void; // İKAS Süt İzolasyonu
   callEmergencyVet: () => boolean;
   scheduleHoofTrimmingAction: () => boolean;
   scheduleVaccinationAction: () => boolean;
@@ -63,6 +65,7 @@ interface FarmStore {
   buyHeiferAction: () => boolean;
   feedColostrumAction: (cowId: string) => void;
   genomicTestAction: (cowId: string) => boolean;
+  updateBovineMeasurements: (cowId: string, heartGirthCm: number, bodyLengthCm: number) => void;
 
   // Facilities
   toggleFansAction: (active: boolean) => void;
@@ -86,7 +89,7 @@ interface FarmStore {
   dismissNotification: (id: string) => void;
 }
 
-const STORAGE_KEY = 'dairy_farm_3d_save_v1';
+const STORAGE_KEY = 'dairy_farm_3d_save_v2';
 
 function loadPersistedState(): FarmState {
   try {
@@ -116,10 +119,10 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
       day: 1,
       hour: 7,
       type: 'info',
-      titleTr: 'Çiftliğe Hoş Geldiniz!',
-      titleEn: 'Welcome to the Farm!',
-      messageTr: 'Süt sığırcılığı işletmeniz açıldı. Sürünüzü inceleyebilir, rasyonu optimize edebilir ve sağımı başlatabilirsiniz.',
-      messageEn: 'Your dairy farm is open for business. Inspect your herd, optimize rations, and manage milking operations.',
+      titleTr: 'Tosun Paşa Süt Çiftliği Açıldı!',
+      titleEn: 'Tosun Pasa Dairy Farm Open!',
+      messageTr: 'Büyükbaş İnek Çarkı (283 Gün), İKAS Süt Arınma Kilidi ve Brix Kolostrum Skalası aktif.',
+      messageEn: '283-Day Bovine Reproduction Wheel, Withdrawal Lock & Brix Colostrum Refractometer active.',
       timestamp: Date.now(),
     },
   ],
@@ -138,12 +141,11 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
       set({ farm: newState });
     }
 
-    // Auto save periodic (her 30 simülasyon dakikasında bir)
     if (Math.random() < 0.02) {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       } catch (e) {
-        // storage quota exceeded or disabled
+        // quota ignore
       }
     }
   },
@@ -285,6 +287,18 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
     return true;
   },
 
+  toggleMilkIsolationAction: (cowId: string) => {
+    synthAudio.playClick();
+    set((state) => ({
+      farm: {
+        ...state.farm,
+        cows: state.farm.cows.map((c) =>
+          c.id === cowId ? { ...c, isMilkIsolated: !c.isMilkIsolated } : c
+        ),
+      },
+    }));
+  },
+
   callEmergencyVet: () => {
     const s = get();
     if (s.farm.cash < 150) return false;
@@ -292,7 +306,6 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
 
     synthAudio.playWarningAlert();
 
-    // Sürüdeki tüm kritik hastaları muayene et ve hafiflet
     set((state) => {
       const updatedCows = state.farm.cows.map((cow) => {
         if (cow.health === 'clinical' || cow.health === 'subclinical') {
@@ -309,7 +322,7 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
         farm: {
           ...state.farm,
           cash: state.farm.cash - 150,
-          vetCooldownMinutes: 5, // 5 dakika oyun içi cooldown
+          vetCooldownMinutes: 5,
           cows: updatedCows,
         },
       };
@@ -355,6 +368,12 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
     const cow = s.farm.cows.find((c) => c.id === cowId);
     if (!cow) return;
 
+    // İKAS kontrolü: Et arınma süresi bitmeyen hayvan kesilemez!
+    if (cow.ikasMeatLockDays > 0) {
+      alert(`⚠️ HATA: Bu hayvanın ${Math.ceil(cow.ikasMeatLockDays)} gün et arınma süresi vardır! Kesime gönderilemez.`);
+      return;
+    }
+
     const meatRevenue = Math.round(cow.weightKg * s.farm.market.meatPricePerKg);
     synthAudio.playCashChime();
 
@@ -391,6 +410,8 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
       activeIllnesses: [],
       bcs: 3.4,
       weightKg: 580,
+      heartGirthCm: 195,
+      bodyLengthCm: 158,
       locomotionScore: 1,
       appetitePct: 100,
       bodyTempC: 38.6,
@@ -401,11 +422,17 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
       scc: 45000,
       fatPct: 3.7,
       proteinPct: 3.2,
-      daysPregnant: 180, // Doğuma ~100 gün var
+      ikasMilkLockHours: 0,
+      ikasMeatLockDays: 0,
+      activeDrugName: null,
+      isMilkIsolated: false,
+      daysPregnant: 180,
       inseminationCount: 1,
       lastCalvingDay: null,
       dryPeriodDays: 0,
+      scourVaccineGiven: false,
       colostrumReceived: true,
+      colostrumBrixPct: 24.0,
       sireId: 'bull_titan',
       damId: null,
       inbreedingCoeff: 0.0,
@@ -456,6 +483,28 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
       },
     }));
     return true;
+  },
+
+  updateBovineMeasurements: (cowId: string, heartGirthCm: number, bodyLengthCm: number) => {
+    // Tosun Paşa Baskülsüz Canlı Ağırlık (CAAG) Formülü:
+    // Canlı Ağırlık = (Göğüs Çevresi^2 * Vücut Uzunluğu) / 10838
+    const estimatedKg = Math.round((Math.pow(heartGirthCm, 2) * bodyLengthCm) / 10838);
+
+    set((state) => ({
+      farm: {
+        ...state.farm,
+        cows: state.farm.cows.map((c) =>
+          c.id === cowId
+            ? {
+                ...c,
+                heartGirthCm,
+                bodyLengthCm,
+                weightKg: estimatedKg,
+              }
+            : c
+        ),
+      },
+    }));
   },
 
   toggleFansAction: (active: boolean) => {
@@ -617,4 +666,3 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
 if (typeof window !== 'undefined') {
   (window as unknown as { farmStore: typeof useFarmStore }).farmStore = useFarmStore;
 }
-

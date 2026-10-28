@@ -1,4 +1,5 @@
 // Süt Sığırcılığı Simülasyon Veri Tipleri (Dairy Cattle Simulation Data Types)
+// Tosun Paşa Çiftliği Bütünleşik Sistem Uyarlaması
 
 export type Language = 'tr' | 'en';
 
@@ -18,12 +19,15 @@ export type HealthState =
   | 'chronic';    // Kronik (Kalıcı hasar)
 
 export type DiseaseType =
-  | 'mastitis'        // Mastitis (Meme iltihabı)
-  | 'laminitis'       // Laminitis (Tırnak iltihabı/topallık)
-  | 'ketosis'         // Ketozis (Negatif enerji dengesi)
-  | 'milk_fever'      // Hipokalsemi / Doğum felci
-  | 'metritis'        // Metritis (Rahim iltihabı)
-  | 'rumen_acidosis'; // Rumen asidozu
+  | 'mastitis'              // Toksik / Akut Mastitis (Meme iltihabı)
+  | 'laminitis'             // Laminitis (Tırnak yangısı/topallık)
+  | 'ketosis'               // Ketozis (Asetonemi / Negatif enerji dengesi)
+  | 'milk_fever'            // Hipokalsemi (Süt humması / Doğum felci)
+  | 'metritis'              // Metritis (Rahim iltihabı)
+  | 'rumen_acidosis'        // Akut Rumen Asidozu (Tane yem çarpması)
+  | 'acute_tympanites'      // Akut Timpani (Köpüklü/gazlı işkembe şişmesi)
+  | 'abomasal_displacement' // Sol Abomazum Deplasmanı (Şirden kayması - LDA)
+  | 'neonatal_diarrhea';    // Buzağı Koli-Septisemi & Neonatal İshal
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export type WeatherCondition = 'sunny' | 'cloudy' | 'rainy' | 'storm' | 'snow' | 'heatwave';
@@ -41,18 +45,27 @@ export type MilkingSystemType =
   | 'ams';           // Otomatik Sağım Sistemi (Robot / AMS)
 
 export type FeedId =
-  | 'corn_silage'    // Mısır silajı
-  | 'alfalfa_hay'    // Yonca kuru otu
-  | 'pasture_grass'  // Çayır otu
-  | 'concentrate'    // Süt yemi (konsantre)
-  | 'soybean_meal'   // Soya küspesi
-  | 'ground_corn'    // Mısır kırması
-  | 'mineral_premix';// Mineral/vitamin premiksi
+  | 'corn_silage'          // Mısır silajı
+  | 'alfalfa_hay'          // Yonca kuru otu
+  | 'pasture_grass'        // Çayır otu
+  | 'concentrate'          // Standart süt yemi
+  | 'soybean_meal'         // Soya küspesi
+  | 'ground_corn'          // Mısır kırması
+  | 'mineral_premix'       // Mineral/vitamin premiksi
+  // Tosun Paşa Çiftliği Türk Yem Ambarı İlave Yemleri
+  | 'ryegrass_silage'      // İtalyan Çimi (Ryegrass) Silajı
+  | 'beet_pulp_silage'     // Paketli Şeker Pancarı Posası Silajı (%24 KM)
+  | 'brewer_grain'         // Yaş Bira Posası Maltı (%24 KM, %26 HP)
+  | 'smart_dairy_21'       // Akıllı Yem (Bypass Proteinli 21 HP / 2.80 ME)
+  | 'dry_cow_feed_14'      // Kuru Dönem Gebe İnek Yemi (14 HP / 2.40 ME)
+  | 'calf_starter_18'      // Buzağı Başlangıç Peleti (18 HP / 2.85 ME)
+  | 'wheat_straw';         // Buğday Beyaz Samanı
 
 export interface FeedNutrientInfo {
   id: FeedId;
   nameTr: string;
   nameEn: string;
+  category: 'kaba' | 'kesif' | 'karma' | 'sanayi' | 'mineral';
   dryMatterPct: number;    // KM % (Kuru Madde)
   energyMJPerKgDM: number; // Net Enerji Laktasyon (MJ/kg KM)
   proteinPct: number;      // Ham Protein %
@@ -110,7 +123,10 @@ export interface CowEvent {
     | 'birth'
     | 'weaned'
     | 'insemination'
+    | 'estrus_check_21d'
+    | 'ultrasound_check'
     | 'pregnancy_confirmed'
+    | 'scour_vaccine_250d'
     | 'calving'
     | 'dry_off'
     | 'illness'
@@ -134,6 +150,8 @@ export interface Cow {
   activeIllnesses: ActiveIllness[];
   bcs: number;                 // Vücut Kondisyon Skoru (1.0 - 5.0)
   weightKg: number;
+  heartGirthCm?: number;       // Göğüs Çevresi (cm) - Canlı Ağırlık Hesabı için
+  bodyLengthCm?: number;       // Vücut Uzunluğu (cm)
   locomotionScore: number;     // Topallık skoru (1: kusursuz, 5: şiddetli topal)
   appetitePct: number;         // %70 - %110
   bodyTempC: number;           // 38.0 - 41.5 °C
@@ -147,12 +165,22 @@ export interface Cow {
   fatPct: number;              // Yağ %
   proteinPct: number;          // Protein %
 
-  // Üreme
-  daysPregnant: number;        // 0-280 (0 ise gebe değil)
+  // İKAS (İlaç Kalıntı Arınma Süresi Kilidi)
+  ikasMilkLockHours: number;   // Süt arınma süresi sayacı (saat) - Süt tanka katılamaz!
+  ikasMeatLockDays: number;    // Et arınma süresi sayacı (gün) - Kesime sevk edilemez!
+  activeDrugName: string | null;// Uygulanan antibiyotik/ilaç adı
+  isMilkIsolated: boolean;     // Sağımda tanktan ayrı kovaya sağılıp imha ediliyor mu?
+
+  // 283 Günlük Büyükbaş İnek Çarkı & Biyolojik Takvim
+  daysPregnant: number;        // 0-283 (0 ise gebe değil)
   inseminationCount: number;
   lastCalvingDay: number | null;
   dryPeriodDays: number;       // Kuru dönemde kaç gün kaldı
+  scourVaccineGiven: boolean;  // 250. gün buzağı ishal aşısı yapıldı mı?
+  
+  // Buzağı Kolostrum Kalitesi (Brix Refraktometre)
   colostrumReceived: boolean;  // İlk 2 saatte kolostrum aldı mı?
+  colostrumBrixPct: number;    // % Brix değeri (örn: %24 Mükemmel, %16 Yetersiz)
 
   // Genetik & Soy Ağacı
   sireId: string | null;       // Baba (Boğa)
@@ -210,6 +238,7 @@ export interface FinancialRecord {
   vetExpense: number;
   energyExpense: number;
   loanInterestExpense: number;
+  ikasContaminationPenalty: number; // İKAS kuralı ihlali (antibiyotikli süt tanka karışırsa ceza)
   netProfit: number;
 }
 
@@ -278,10 +307,11 @@ export interface FarmState {
     averageScc: number;
     averageBcs: number;
     calvingIntervalDays: number;
+    ikasLockBreaches: number;    // İKAS ihlal sayısı
   };
 }
 
-export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'calving';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'calving' | 'ikas';
 
 export interface NotificationItem {
   id: string;

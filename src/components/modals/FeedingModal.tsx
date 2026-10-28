@@ -8,8 +8,8 @@ import {
   AlertTriangle,
   PlusCircle,
   CheckCircle,
-  HelpCircle,
-  Sparkles,
+  Truck,
+  RotateCcw,
 } from 'lucide-react';
 import { useFarmStore } from '../../store/useFarmStore';
 import { getTranslation } from '../../locales/i18n';
@@ -32,6 +32,8 @@ export const FeedingModal: React.FC = () => {
     JSON.parse(JSON.stringify(farm.activeRation))
   );
 
+  const [mixerCowCount, setMixerCowCount] = useState<number>(farm.cows.length || 18);
+
   if (activeModal !== 'feeding') return null;
   const t = getTranslation(language);
 
@@ -41,7 +43,6 @@ export const FeedingModal: React.FC = () => {
     const updated = customRation.map((item) =>
       item.feedId === feedId ? { ...item, kgFreshWeight: Math.max(0, val) } : item
     );
-    // If not in ration, add it
     if (!updated.some((item) => item.feedId === feedId)) {
       updated.push({ feedId, kgFreshWeight: Math.max(0, val) });
     }
@@ -56,6 +57,11 @@ export const FeedingModal: React.FC = () => {
       ? 'text-amber-400 bg-amber-950/80 border-amber-800'
       : 'text-emerald-400 bg-emerald-950/80 border-emerald-800';
 
+  // Total TMR wagon batch fresh weight
+  const currentRation = farm.rationAutoMode ? farm.activeRation : customRation;
+  const totalKgPerCow = currentRation.reduce((acc, r) => acc + r.kgFreshWeight, 0);
+  const totalWagonBatchKg = Math.round(totalKgPerCow * mixerCowCount);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
       <div className="relative bg-slate-900 border border-slate-700/80 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl text-slate-100 p-6 flex flex-col gap-6">
@@ -64,7 +70,7 @@ export const FeedingModal: React.FC = () => {
           <div>
             <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
               <Wheat className="w-5 h-5 text-amber-400" />
-              <span>{t.feeding.title}</span>
+              <span>{t.feeding.title} (Tosun Paşa TMR & Yem Ambarı)</span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">{t.feeding.subtitle}</p>
           </div>
@@ -150,42 +156,82 @@ export const FeedingModal: React.FC = () => {
           </div>
         </div>
 
-        {/* Nutritional & Financial Impact */}
-        <div className="flex flex-wrap items-center justify-between bg-slate-950/40 p-3.5 rounded-xl border border-slate-800 text-xs">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-400" />
-            <span className="text-slate-300">
-              {t.feeding.milkPotential}:{' '}
-              <strong className="text-emerald-400 font-mono">
-                ~{analysis.milkPotentialL} L/gün
-              </strong>
-            </span>
+        {/* Tosun Paşa TMR Mikser Vagon Kantarı & Döküm Planlayıcı */}
+        <div className="bg-slate-950/80 p-4 rounded-xl border border-amber-900/50 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Truck className="w-5 h-5 text-amber-400" />
+              <div>
+                <h3 className="text-xs font-bold text-amber-200">
+                  TMR Mikser Vagon Kantarı & Toplu Döküm (Batch Kantarı)
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Sürü mevcuduna göre vagon tartım göstergesi ve sırayla döküm listesi
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-300">Hayvan Sayısı:</span>
+              <input
+                type="number"
+                min="1"
+                max="200"
+                value={mixerCowCount}
+                onChange={(e) => setMixerCowCount(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-center font-bold text-amber-300"
+              />
+              <span className="font-mono font-bold text-amber-400 bg-slate-900 px-3 py-1 rounded border border-amber-800">
+                Toplam Vagon: {totalWagonBatchKg} kg
+              </span>
+            </div>
           </div>
-          <div className="text-slate-300">
-            {t.feeding.costPerCow}:{' '}
-            <strong className="text-white font-mono">
-              €{analysis.costPerCowPerDay}
-            </strong>
+
+          {/* Döküm Adımları & Dara Çizelgesi */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+            {currentRation
+              .filter((r) => r.kgFreshWeight > 0)
+              .map((r, idx) => {
+                const f = FEED_DATABASE[r.feedId];
+                const feedBatch = Math.round(r.kgFreshWeight * mixerCowCount);
+                return (
+                  <div
+                    key={r.feedId}
+                    className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 flex flex-col justify-between"
+                  >
+                    <span className="text-[10px] text-slate-400 truncate">
+                      {idx + 1}. {f?.nameTr || r.feedId}
+                    </span>
+                    <span className="text-sm font-bold text-cyan-300 mt-1">
+                      {feedBatch} kg
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      ({r.kgFreshWeight} kg/baş)
+                    </span>
+                  </div>
+                );
+              })}
           </div>
         </div>
 
         {/* Ration Composition Table */}
         <div className="flex flex-col gap-2">
           <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-            {t.feeding.freshFeedPerCow} & {t.feeding.stock}
+            Genişletilmiş Yem Ambarı & Stok Durumu
           </h3>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-72 overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-950/80 text-[10px] uppercase text-slate-400 border-b border-slate-800">
+              <thead className="bg-slate-950/90 sticky top-0 text-[10px] uppercase text-slate-400 border-b border-slate-800">
                 <tr>
                   <th className="py-2 px-3">Yem Adı</th>
+                  <th className="py-2 px-3">Kategori</th>
                   <th className="py-2 px-3">KM %</th>
                   <th className="py-2 px-3">Enerji (MJ)</th>
                   <th className="py-2 px-3">Protein %</th>
                   <th className="py-2 px-3">Miktar (kg/gün)</th>
                   <th className="py-2 px-3">Depo Stoku</th>
-                  <th className="py-2 px-3 text-right">Depo Ekle (+5.000 kg)</th>
+                  <th className="py-2 px-3 text-right">Depoya Ekle (+5.000 kg)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
@@ -200,6 +246,9 @@ export const FeedingModal: React.FC = () => {
                     <tr key={feed.id} className="hover:bg-slate-800/40">
                       <td className="py-2 px-3 font-sans font-semibold text-white">
                         {language === 'tr' ? feed.nameTr : feed.nameEn}
+                      </td>
+                      <td className="py-2 px-3 text-slate-400 uppercase text-[10px] font-sans">
+                        {feed.category}
                       </td>
                       <td className="py-2 px-3 text-slate-300">%{feed.dryMatterPct}</td>
                       <td className="py-2 px-3 text-slate-300">{feed.energyMJPerKgDM}</td>

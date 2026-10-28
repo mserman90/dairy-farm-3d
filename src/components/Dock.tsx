@@ -4,6 +4,7 @@ import {
   Wheat,
   Milk,
   HeartPulse,
+  Disc,
   Home,
   TrendingUp,
   Dna,
@@ -24,6 +25,7 @@ export const Dock: React.FC = () => {
   ).length;
 
   const lowFeedCount = Object.values(farm.feedStockKg).filter((kg) => kg < 1500).length;
+  const pregnantCount = farm.cows.filter((c) => c.daysPregnant > 0).length;
 
   const navItems: {
     id: ModalType;
@@ -57,6 +59,13 @@ export const Dock: React.FC = () => {
       icon: <HeartPulse className="w-5 h-5" />,
       badge: sickCount > 0 ? sickCount : undefined,
       badgeColor: 'bg-rose-600 text-white animate-pulse',
+    },
+    {
+      id: 'reproWheel',
+      label: t.dock.reproWheel,
+      icon: <Disc className="w-5 h-5" />,
+      badge: pregnantCount > 0 ? pregnantCount : undefined,
+      badgeColor: 'bg-indigo-600 text-white',
     },
     {
       id: 'housing',

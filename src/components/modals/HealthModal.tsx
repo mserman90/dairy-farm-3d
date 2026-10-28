@@ -6,13 +6,14 @@ import {
   ShieldCheck,
   PhoneCall,
   Clock,
-  Sparkles,
   Scissors,
   Syringe,
+  ShieldAlert,
+  Droplet,
 } from 'lucide-react';
 import { useFarmStore } from '../../store/useFarmStore';
 import { getTranslation } from '../../locales/i18n';
-import { DiseaseType } from '../../lib/sim/types';
+import { GOLDEN_EMERGENCY_PROTOCOLS } from '../../lib/sim/constants';
 
 export const HealthModal: React.FC = () => {
   const {
@@ -24,65 +25,15 @@ export const HealthModal: React.FC = () => {
     scheduleHoofTrimmingAction,
     scheduleVaccinationAction,
     treatCowAction,
+    toggleMilkIsolationAction,
     setSelectedCowId,
   } = useFarmStore();
 
   if (activeModal !== 'health') return null;
   const t = getTranslation(language);
 
-  // Collect all active illness cases across herd
   const sickCows = farm.cows.filter((c) => c.activeIllnesses.length > 0);
-
-  const diseaseGuide: {
-    type: DiseaseType;
-    nameTr: string;
-    causeTr: string;
-    symptomTr: string;
-    windowTr: string;
-  }[] = [
-    {
-      type: 'mastitis',
-      nameTr: 'Mastitis (Meme İltihabı)',
-      causeTr: 'Yetersiz hijyen, sağım makinesi vakum hatası',
-      symptomTr: 'SCC > 400k artışı, memede şişlik/ısı',
-      windowTr: '24 saat',
-    },
-    {
-      type: 'laminitis',
-      nameTr: 'Laminitis (Tırnak Yangısı)',
-      causeTr: 'Asidoz, ıslak zemin, sert beton',
-      symptomTr: 'Topallık (skor ≥3), yatma süresinde artış',
-      windowTr: '48 saat',
-    },
-    {
-      type: 'ketosis',
-      nameTr: 'Ketozis (Enerji Açığı)',
-      causeTr: 'Erken laktasyonda yetersiz yem tüketimi, yağ mobilizasyonu',
-      symptomTr: 'İştah kaybı, ani süt düşüşü, aseton kokusu',
-      windowTr: '12 saat',
-    },
-    {
-      type: 'milk_fever',
-      nameTr: 'Hipokalsemi (Doğum Felci)',
-      causeTr: 'Doğum sonrası kan kalsiyumunun hızla düşmesi',
-      symptomTr: 'Ayağa kalkamama (downer cow), titreme',
-      windowTr: '4 saat (Kritik!)',
-    },
-    {
-      type: 'metritis',
-      nameTr: 'Metritis (Rahim Yangısı)',
-      causeTr: 'Güç doğum travması, sonun atılamaması',
-      symptomTr: 'Kötü kokulu akıntı, yüksek ateş',
-      windowTr: '3 gün',
-    },
-    {
-      type: 'rumen_acidosis',
-      nameTr: 'Rumen Asidozu (Ekşime)',
-      causeTr: 'Aşırı kesif yem, lif (NDF) < %28 eksikliği',
-      symptomTr: 'İshal, yem yemeyi bırakma, geviş getirmeme',
-      windowTr: '24 saat',
-    },
-  ];
+  const ikasLockedCows = farm.cows.filter((c) => c.ikasMilkLockHours > 0 || c.ikasMeatLockDays > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
@@ -92,7 +43,7 @@ export const HealthModal: React.FC = () => {
           <div>
             <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
               <HeartPulse className="w-5 h-5 text-rose-400" />
-              <span>{t.health.title}</span>
+              <span>{t.health.title} (Tosun Paşa Saha & İKAS Sistemi)</span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">{t.health.subtitle}</p>
           </div>
@@ -104,6 +55,58 @@ export const HealthModal: React.FC = () => {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Canlı İKAS Süt & Et Arınma Süresi Güvenlik Paneli (Tosun Paşa) */}
+        {ikasLockedCows.length > 0 && (
+          <div className="bg-rose-950/70 border-2 border-rose-600 p-4 rounded-2xl shadow-xl flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-rose-300 font-extrabold text-xs uppercase tracking-wider">
+                <ShieldAlert className="w-5 h-5 text-rose-400 animate-bounce" />
+                <span>🚨 CANLI İKAS ARINMA KİLİDİ AKTİF ({ikasLockedCows.length} Hayvan)</span>
+              </div>
+              <span className="text-[11px] font-bold text-rose-200 bg-rose-900 px-2 py-0.5 rounded border border-rose-700">
+                Süt Tankı Güvenliği
+              </span>
+            </div>
+
+            <p className="text-xs text-rose-200">
+              Aşağıdaki hayvanlara antibiyotik veya ilaç uygulanmıştır. Yasal arınma süresi dolana kadar sütleri ana tanka karıştırılamaz!
+            </p>
+
+            <div className="flex flex-col gap-2">
+              {ikasLockedCows.map((cow) => (
+                <div
+                  key={cow.id}
+                  className="bg-slate-900/90 p-3 rounded-xl border border-rose-800 flex items-center justify-between text-xs flex-wrap gap-2"
+                >
+                  <div>
+                    <strong className="text-white">
+                      #{cow.tagNumber} {cow.name}
+                    </strong>
+                    <span className="text-slate-400 ml-2">
+                      İlaç: <em>{cow.activeDrugName || 'Antibiyotik'}</em>
+                    </span>
+                    <div className="text-[11px] text-amber-300 font-mono mt-0.5">
+                      🥛 Süt Arınma Süresi: {Math.ceil(cow.ikasMilkLockHours)} saat kaldı • 🥩 Et:{' '}
+                      {Math.ceil(cow.ikasMeatLockDays)} gün
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => toggleMilkIsolationAction(cow.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shadow ${
+                      cow.isMilkIsolated
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-rose-600 hover:bg-rose-500 text-white animate-pulse'
+                    }`}
+                  >
+                    {cow.isMilkIsolated ? '✓ Ayrı Kovaya Alındı (Güvenli)' : '⚠️ Tanka Katılıyor! (İzole Et)'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Action Banners (Vet dispatch & preventive care) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -126,9 +129,7 @@ export const HealthModal: React.FC = () => {
               {farm.vetCooldownMinutes > 0 ? (
                 <>
                   <Clock className="w-3.5 h-3.5" />
-                  <span>
-                    Bekleme ({Math.ceil(farm.vetCooldownMinutes)} dk)
-                  </span>
+                  <span>Bekleme ({Math.ceil(farm.vetCooldownMinutes)} dk)</span>
                 </>
               ) : (
                 <span>Veteriner Çağır (€150)</span>
@@ -253,29 +254,35 @@ export const HealthModal: React.FC = () => {
           )}
         </div>
 
-        {/* Educational Disease & Early Intervention Matrix */}
+        {/* Tosun Paşa 6 Altın Acil Müdahale Protokolü */}
         <div className="flex flex-col gap-2.5 border-t border-slate-800 pt-4">
-          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-            Hastalık Rehberi & Erken Müdahale Pencereleri
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <span>Tosun Paşa Çiftliği 6 Altın Acil Müdahale Protokolü</span>
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-            {diseaseGuide.map((d) => (
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {GOLDEN_EMERGENCY_PROTOCOLS.map((p) => (
               <div
-                key={d.type}
-                className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 flex flex-col gap-1"
+                key={p.id}
+                className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/90 flex flex-col gap-1.5"
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-100">{d.nameTr}</h4>
-                  <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/50">
-                    Pencere: {d.windowTr}
+                  <h4 className="font-bold text-amber-300">{p.titleTr}</h4>
+                  <span className="text-[10px] font-mono font-bold text-rose-400 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800/50">
+                    Kritik: {p.windowHours} saat
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400">
-                  <strong className="text-slate-300">Neden:</strong> {d.causeTr}
+                <p className="text-[11px] text-slate-300">
+                  <strong className="text-slate-400">Semptom:</strong> {p.symptomTr}
                 </p>
-                <p className="text-[11px] text-slate-400">
-                  <strong className="text-slate-300">Erken Belirti:</strong> {d.symptomTr}
+                <p className="text-[11px] text-emerald-300 bg-emerald-950/30 p-2 rounded border border-emerald-900/40">
+                  <strong className="text-emerald-400">Altın Protokol:</strong> {p.actionTr}
                 </p>
+                {p.milkLockHours > 0 && (
+                  <span className="text-[10px] text-rose-400 font-bold mt-0.5">
+                    ⚠️ Tedavi Sonrası İKAS: {p.milkLockHours} saat Süt Kilidi / {p.meatLockDays} gün Et Kilidi
+                  </span>
+                )}
               </div>
             ))}
           </div>
