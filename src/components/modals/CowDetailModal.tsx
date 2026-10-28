@@ -263,6 +263,82 @@ export const CowDetailModal: React.FC = () => {
           </div>
         </div>
 
+        {/* Doğal Biyolojik İzleme & Akıllı Tasma Sensörleri (Smart Collar & Rumination) */}
+        <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 flex flex-col gap-2.5 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-200 flex items-center gap-1.5">
+              <span>📡</span>
+              <span>{language === 'tr' ? 'Akıllı Boyun Tasması & Biyolojik Telemetri' : 'Smart Collar & Biological Sensors'}</span>
+            </span>
+            {cow.isStandingHeat && (
+              <span className="px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-700 text-[10px] font-bold animate-pulse">
+                🔥 {language === 'tr' ? `KIZGINLIKTA (${cow.standingHeatHoursLeft.toFixed(1)}s kaldı)` : `STANDING HEAT (${cow.standingHeatHoursLeft.toFixed(1)}h left)`}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Meme Doluluğu */}
+            <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg flex flex-col gap-1">
+              <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
+                <span>{language === 'tr' ? 'Meme Doluluk Oranı' : 'Udder Fill Level'}</span>
+                <span className="font-mono text-cyan-300 font-bold">%{Math.round(cow.udderFillPct || 0)}</span>
+              </div>
+              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, cow.udderFillPct || 0)}%` }}
+                />
+              </div>
+              <span className="text-[9px] text-slate-500">
+                {(cow.udderFillPct || 0) >= 85
+                  ? (language === 'tr' ? 'Sağıma hazır / Meme gergin' : 'Ready for milking')
+                  : (language === 'tr' ? 'Süt birikiyor' : 'Accumulating milk')}
+              </span>
+            </div>
+
+            {/* Geviş Getirme (Rumination) */}
+            <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg flex flex-col justify-between">
+              <span className="text-[10px] text-slate-400 font-semibold">
+                {language === 'tr' ? 'Günlük Geviş Getirme' : 'Rumination Time'}
+              </span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-base font-bold font-mono text-emerald-300">
+                  {cow.ruminationMinutesToday || 0}
+                </span>
+                <span className="text-[10px] text-slate-400">dk / gün</span>
+              </div>
+              <span className="text-[9px] text-slate-500">
+                {(cow.ruminationMinutesToday || 0) >= 420
+                  ? (language === 'tr' ? '✓ Sağlıklı Rumen' : '✓ Optimal Rumen')
+                  : (language === 'tr' ? '⚠️ Düşük Lif / Asidoz Riski' : '⚠️ Low Fiber Alert')}
+              </span>
+            </div>
+
+            {/* Pedometre Aktivite İndeksi */}
+            <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg flex flex-col justify-between">
+              <span className="text-[10px] text-slate-400 font-semibold">
+                {language === 'tr' ? 'Pedometre Aktivitesi' : 'Pedometer Activity'}
+              </span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span
+                  className={`text-base font-bold font-mono ${
+                    cow.isStandingHeat ? 'text-rose-400' : 'text-slate-200'
+                  }`}
+                >
+                  {(cow.activityIndex || 1.0).toFixed(1)}x
+                </span>
+                <span className="text-[10px] text-slate-400">bazal seviye</span>
+              </div>
+              <span className="text-[9px] text-slate-500">
+                {cow.isStandingHeat
+                  ? (language === 'tr' ? '🔥 Östrus / Yüksek hareket' : '🔥 Estrus spike')
+                  : (language === 'tr' ? 'Normal sürü hareketi' : 'Baseline movement')}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Tosun Paşa Kolostrum Brix Skalası (Buzağılar veya taze inekler için) */}
         {cow.colostrumBrixPct > 0 && (
           <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3 text-xs">

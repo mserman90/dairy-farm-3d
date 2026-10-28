@@ -84,6 +84,8 @@ interface FarmStore {
   feedColostrumAction: (cowId: string) => void;
   genomicTestAction: (cowId: string) => boolean;
   updateBovineMeasurements: (cowId: string, heartGirthCm: number, bodyLengthCm: number) => void;
+  pushFeedAction: () => void;
+  installAutomaticFeedPusherAction: () => boolean;
 
   // Facilities
   toggleFansAction: (active: boolean) => void;
@@ -117,6 +119,25 @@ function loadPersistedState(): FarmState {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.version && parsed.cows) {
         parsed.farmName = 'Tosunpaşa Çiftliği';
+        if (parsed.circadianPhase === undefined) parsed.circadianPhase = 'morning_milking';
+        if (parsed.bulkTankLiters === undefined) parsed.bulkTankLiters = 120;
+        if (parsed.bulkTankTempC === undefined) parsed.bulkTankTempC = 3.8;
+        if (parsed.feedPushed === undefined) parsed.feedPushed = true;
+        if (parsed.feedPushCountdownHours === undefined) parsed.feedPushCountdownHours = 3.5;
+        if (parsed.morningMilkingDone === undefined) parsed.morningMilkingDone = false;
+        if (parsed.eveningMilkingDone === undefined) parsed.eveningMilkingDone = false;
+        if (parsed.dailyTankerArrived === undefined) parsed.dailyTankerArrived = false;
+        if (parsed.lastTankerPayment === undefined) parsed.lastTankerPayment = 0;
+        if (parsed.facilities && parsed.facilities.automaticFeedPusher === undefined) {
+          parsed.facilities.automaticFeedPusher = false;
+        }
+        parsed.cows.forEach((c: any) => {
+          if (c.udderFillPct === undefined) c.udderFillPct = c.state === 'lactating' ? 60 : 0;
+          if (c.ruminationMinutesToday === undefined) c.ruminationMinutesToday = 480;
+          if (c.isStandingHeat === undefined) c.isStandingHeat = false;
+          if (c.standingHeatHoursLeft === undefined) c.standingHeatHoursLeft = 0;
+          if (c.activityIndex === undefined) c.activityIndex = 1.0;
+        });
         return parsed;
       }
     }
@@ -497,6 +518,11 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
       inbreedingCoeff: 0.0,
       genomicTested: true,
       genomicYieldPotential: 1.15,
+      udderFillPct: 0,
+      ruminationMinutesToday: 480,
+      isStandingHeat: false,
+      standingHeatHoursLeft: 0,
+      activityIndex: 1.0,
       position: [12 + Math.random() * 4, 0, 4 + Math.random() * 4],
       rotationY: Math.random() * Math.PI * 2,
       behaviorState: 'resting',
@@ -564,6 +590,37 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
         ),
       },
     }));
+  },
+
+  pushFeedAction: () => {
+    synthAudio.playClick();
+    set((state) => ({
+      farm: {
+        ...state.farm,
+        feedPushed: true,
+        feedPushCountdownHours: 4.0,
+      },
+    }));
+  },
+
+  installAutomaticFeedPusherAction: () => {
+    const s = get();
+    const cost = 6500;
+    if (s.farm.cash < cost) return false;
+    synthAudio.playCashChime();
+    set((state) => ({
+      farm: {
+        ...state.farm,
+        cash: state.farm.cash - cost,
+        facilities: {
+          ...state.farm.facilities,
+          automaticFeedPusher: true,
+        },
+        feedPushed: true,
+        feedPushCountdownHours: 4.0,
+      },
+    }));
+    return true;
   },
 
   toggleFansAction: (active: boolean) => {

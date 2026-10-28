@@ -518,4 +518,5 @@ export const INITIAL_FACILITIES: FarmFacility = {
   milkingSystem: 'parallel',
   milkingTimesPerDay: 2,
   organicCertified: false,
+  automaticFeedPusher: false,
 };

@@ -30,6 +30,7 @@ import {
   formatCurrencyValue,
   formatVolumeValue,
   formatTempValue,
+  getCircadianPhase,
 } from '../lib/sim/types';
 
 export const TopBar: React.FC = () => {
@@ -45,9 +46,11 @@ export const TopBar: React.FC = () => {
     currency,
     unitSystem,
     setActiveModal,
+    pushFeedAction,
   } = useFarmStore();
 
   const t = getTranslation(language);
+  const phaseInfo = getCircadianPhase(farm.hour);
   const [isMuted, setIsMuted] = React.useState(synthAudio.isAudioMuted());
   const [isMusicOn, setIsMusicOn] = React.useState(synthAudio.isMusicActive());
   const [isFullscreen, setIsFullscreen] = React.useState(!!document.fullscreenElement);
@@ -185,7 +188,49 @@ export const TopBar: React.FC = () => {
         </div>
       </div>
 
-      {/* Main KPI Counters (Cash & Milk) */}
+      {/* Center Circadian Phase & Routine Status */}
+      <div className="hidden lg:flex items-center gap-2.5">
+        {/* Sirkadiyen Günlük Rutin Rozeti */}
+        <div
+          className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg text-xs shadow-inner cursor-pointer hover:border-amber-500/50 transition"
+          onClick={() => setActiveModal('milking')}
+          title={language === 'tr' ? phaseInfo.descTr : phaseInfo.descEn}
+        >
+          <span className="text-base">{phaseInfo.icon}</span>
+          <div>
+            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block leading-none">
+              {language === 'tr' ? 'Çiftlik Döngüsü' : 'Farm Rhythm'}
+            </span>
+            <span className="text-[11px] font-extrabold text-amber-300">
+              {language === 'tr' ? phaseInfo.titleTr.split(' (')[0] : phaseInfo.titleEn.split(' (')[0]}
+            </span>
+          </div>
+        </div>
+
+        {/* Yem İtme (Feed Pushing) Butonu */}
+        <button
+          onClick={pushFeedAction}
+          className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 ${
+            farm.feedPushed
+              ? 'bg-slate-900/90 border-slate-800 text-slate-400 hover:text-slate-200'
+              : 'bg-amber-600 border-amber-500 text-white animate-pulse shadow-lg shadow-amber-950/60'
+          }`}
+          title={
+            farm.feedPushed
+              ? language === 'tr'
+                ? `Yemler İtildi (${farm.feedPushCountdownHours.toFixed(1)}s kaldı - DMI %100)`
+                : `Feed Pushed (${farm.feedPushCountdownHours.toFixed(1)}h left)`
+              : language === 'tr'
+              ? 'Yemleri İneklerin Önüne İt (Kısayol: P)'
+              : 'Push Feed to Cows (Shortcut: P)'
+          }
+        >
+          <span>🌾</span>
+          <span className="text-[11px]">{farm.feedPushed ? 'Yem İtildi' : 'Yemi İt!'}</span>
+        </button>
+      </div>
+
+      {/* Main KPI Counters (Cash & Bulk Tank) */}
       <div className="flex items-center gap-3">
         {/* Cash Balance */}
         <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-950/70 to-slate-900/80 px-3 py-1.5 rounded-lg border border-emerald-800/40 shadow-inner">
@@ -202,17 +247,22 @@ export const TopBar: React.FC = () => {
           </div>
         </div>
 
-        {/* Daily Milk */}
-        <div className="flex items-center gap-2 bg-gradient-to-r from-cyan-950/70 to-slate-900/80 px-3 py-1.5 rounded-lg border border-cyan-800/40 shadow-inner">
+        {/* Bulk Cooling Tank Milk */}
+        <div
+          onClick={() => setActiveModal('milking')}
+          className="flex items-center gap-2 bg-gradient-to-r from-cyan-950/70 to-slate-900/80 px-3 py-1.5 rounded-lg border border-cyan-800/40 shadow-inner cursor-pointer hover:border-cyan-500 transition"
+          title="Soğutma Tankı: Akşam 20:30'da fabrika tankeri tarafından çekilir."
+        >
           <div className="w-6 h-6 rounded-md bg-cyan-600/30 flex items-center justify-center text-cyan-300">
             <Milk className="w-3.5 h-3.5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">
-              {t.topBar.dailyMilk}
+            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-medium flex items-center justify-between gap-1">
+              <span>{language === 'tr' ? 'Soğutma Tankı' : 'Bulk Tank'}</span>
+              <span className="text-[9px] text-cyan-400 font-mono">3.8°C</span>
             </div>
             <div className="text-sm font-bold font-mono text-cyan-200">
-              {formatVolumeValue(dailyMilkTotal, unitSystem)}
+              {formatVolumeValue(farm.bulkTankLiters, unitSystem)}
             </div>
           </div>
         </div>

@@ -58,6 +58,7 @@ export const Farm3DCanvas: React.FC = () => {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cowMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const fanBladesRef = useRef<THREE.Group[]>([]);
+  const tankerTruckRef = useRef<THREE.Group | null>(null);
   const weatherParticlesRef = useRef<THREE.Points | null>(null);
   const lightsRef = useRef<{
     sun: THREE.DirectionalLight;
@@ -128,7 +129,7 @@ export const Farm3DCanvas: React.FC = () => {
     };
 
     // Build Static Farm Environment
-    buildFarmEnvironment(scene, fanBladesRef);
+    buildFarmEnvironment(scene, fanBladesRef, tankerTruckRef);
 
     // Mouse and Keyboard Controls
     let isMouseDown = false;
@@ -392,6 +393,13 @@ export const Farm3DCanvas: React.FC = () => {
       renderer.shadowMap.enabled = true;
     }
   }, [graphicsQuality]);
+
+  // Milk Tanker Truck visibility based on circadian phase
+  useEffect(() => {
+    if (tankerTruckRef.current) {
+      tankerTruckRef.current.visible = farm.circadianPhase === 'milk_pickup';
+    }
+  }, [farm.circadianPhase]);
 
   // Update Dynamic Lighting & Sky based on Sim Time & Weather
   useEffect(() => {
@@ -705,7 +713,11 @@ function createProceduralCowMesh(cow: Cow, breed: typeof DEFAULT_BREEDS[0]): THR
 // ==========================================
 // BUILD DETAILED 3D FARM ENVIRONMENT
 // ==========================================
-function buildFarmEnvironment(scene: THREE.Scene, fanBladesRef: React.MutableRefObject<THREE.Group[]>): void {
+function buildFarmEnvironment(
+  scene: THREE.Scene,
+  fanBladesRef: React.MutableRefObject<THREE.Group[]>,
+  tankerTruckRef: React.MutableRefObject<THREE.Group | null>
+): void {
   // 1. Terrain Ground
   const terrainGeo = new THREE.PlaneGeometry(240, 240, 32, 32);
   terrainGeo.rotateX(-Math.PI / 2);
@@ -826,6 +838,69 @@ function buildFarmEnvironment(scene: THREE.Scene, fanBladesRef: React.MutableRef
   milkTank.position.set(-22, 2.6, -14);
   milkTank.castShadow = true;
   scene.add(milkTank);
+
+  // 3.1 Dairy Processing Milk Tanker Truck (Arrives at 20:00 - 22:00)
+  const tankerGroup = new THREE.Group();
+  tankerGroup.name = 'milk_tanker_truck';
+  tankerGroup.position.set(-26, 0, -6);
+  tankerGroup.rotation.y = -Math.PI / 2;
+
+  // Truck Chassis
+  const chassisGeo = new THREE.BoxGeometry(2.6, 0.4, 11);
+  const chassisMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.6 });
+  const chassis = new THREE.Mesh(chassisGeo, chassisMat);
+  chassis.position.y = 0.8;
+  chassis.castShadow = true;
+  tankerGroup.add(chassis);
+
+  // Driver Cab
+  const cabGeo = new THREE.BoxGeometry(2.5, 2.4, 2.8);
+  const cabMat = new THREE.MeshStandardMaterial({ color: '#0284c7', roughness: 0.3, metalness: 0.3 });
+  const cab = new THREE.Mesh(cabGeo, cabMat);
+  cab.position.set(0, 2.1, 3.8);
+  cab.castShadow = true;
+  tankerGroup.add(cab);
+
+  // Cab Windshield
+  const windshieldGeo = new THREE.BoxGeometry(2.3, 1.0, 0.1);
+  const glassMat = new THREE.MeshStandardMaterial({ color: '#38bdf8', roughness: 0.1, metalness: 0.9 });
+  const windshield = new THREE.Mesh(windshieldGeo, glassMat);
+  windshield.position.set(0, 2.4, 5.25);
+  tankerGroup.add(windshield);
+
+  // Stainless Steel Milk Cistern Tank
+  const cisternGeo = new THREE.CylinderGeometry(1.4, 1.4, 7.2, 16);
+  cisternGeo.rotateX(Math.PI / 2);
+  const cisternMat = new THREE.MeshStandardMaterial({ color: '#f1f5f9', roughness: 0.15, metalness: 0.95 });
+  const cistern = new THREE.Mesh(cisternGeo, cisternMat);
+  cistern.position.set(0, 2.3, -1.6);
+  cistern.castShadow = true;
+  tankerGroup.add(cistern);
+
+  // Tanker Wheels
+  const wheelGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 12);
+  wheelGeo.rotateZ(Math.PI / 2);
+  const wheelMat = new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.9 });
+  [-4.0, -2.5, 1.5, 3.5].forEach((wz) => {
+    [-1.3, 1.3].forEach((wx) => {
+      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+      wheel.position.set(wx, 0.5, wz);
+      tankerGroup.add(wheel);
+    });
+  });
+
+  // Milk Transfer Hose connecting to the bulk tank
+  const hoseGeo = new THREE.CylinderGeometry(0.08, 0.08, 6.5, 8);
+  hoseGeo.rotateX(Math.PI / 2);
+  const hoseMat = new THREE.MeshStandardMaterial({ color: '#3b82f6', roughness: 0.5 });
+  const hose = new THREE.Mesh(hoseGeo, hoseMat);
+  hose.position.set(1.5, 0.6, -3.5);
+  hose.rotation.y = -0.4;
+  tankerGroup.add(hose);
+
+  tankerGroup.visible = false;
+  scene.add(tankerGroup);
+  tankerTruckRef.current = tankerGroup;
 
   // 4. Feed Storage Silos (Tower Silos)
   const siloMat = new THREE.MeshStandardMaterial({ color: '#94a3b8', roughness: 0.35, metalness: 0.75 });

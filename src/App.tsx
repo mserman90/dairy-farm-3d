@@ -30,6 +30,7 @@ export const App: React.FC = () => {
     setCameraPreset,
     selectedCowId,
     setSelectedCowId,
+    pushFeedAction,
   } = useFarmStore();
 
   const prevTimeRef = useRef<number>(performance.now());
@@ -79,6 +80,9 @@ export const App: React.FC = () => {
       } else if (e.code === 'KeyH') {
         e.preventDefault();
         toggleZenMode();
+      } else if (e.code === 'KeyP') {
+        e.preventDefault();
+        pushFeedAction();
       } else if (e.code === 'Tab') {
         e.preventDefault();
         setActiveModal(activeModal === 'none' ? 'herd' : 'none');

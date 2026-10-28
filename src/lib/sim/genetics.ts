@@ -144,6 +144,11 @@ export function performCalving(
     isMilkIsolated: false,
     colostrumBrixPct: 22,
     scourVaccineGiven: false,
+    udderFillPct: 0,
+    ruminationMinutesToday: 120,
+    isStandingHeat: false,
+    standingHeatHoursLeft: 0,
+    activityIndex: 1.0,
   };
 
   const damNotesTr = `#${dam.tagNumber} ${dam.name} sağlıklı bir ${isFemale ? 'dişi' : 'erkek'} buzağı doğurdu!`;

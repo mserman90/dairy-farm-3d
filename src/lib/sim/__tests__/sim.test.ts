@@ -15,6 +15,7 @@ import {
   formatCurrencyValue,
   formatWeightValue,
   formatVolumeValue,
+  getCircadianPhase,
 } from '../types.js';
 
 test('Wood Lactation Curve: calculates realistic trajectory and peak', () => {
@@ -113,6 +114,11 @@ test('Genetics: Inbreeding calculation & Heat stress impact on AI', () => {
     isMilkIsolated: false,
     colostrumBrixPct: 22,
     scourVaccineGiven: false,
+    udderFillPct: 0,
+    ruminationMinutesToday: 480,
+    isStandingHeat: false,
+    standingHeatHoursLeft: 0,
+    activityIndex: 1.0,
   };
 
   const inbreeding = calculateInbreedingCoeff(cow, sire, [cow]);
@@ -198,6 +204,11 @@ test('Tosun Paşa: İKAS Milk and Meat Withdrawal Lock Enforcement', () => {
     isMilkIsolated: false,
     colostrumBrixPct: 22,
     scourVaccineGiven: false,
+    udderFillPct: 0,
+    ruminationMinutesToday: 480,
+    isStandingHeat: false,
+    standingHeatHoursLeft: 0,
+    activityIndex: 1.0,
   };
 
   // Treat mastitis -> should trigger 72h milk lock and 28d meat lock
@@ -270,4 +281,38 @@ test('International Realistic Gaming Standards: ICAR ECM, FPR & Conversions', ()
   const lbsStr = formatWeightValue(650, 'imperial');
   assert.ok(lbsStr.includes('lbs'));
   assert.equal(lbsStr, '1,433 lbs');
+});
+
+test('Natural Flow of Life: 24-Hour Circadian Farm Routine', () => {
+  // Morning Milking Phase (05:00 - 08:00)
+  const morning = getCircadianPhase(6.5);
+  assert.equal(morning.phase, 'morning_milking');
+  assert.ok(morning.titleTr.includes('Sabah Sağımı'));
+
+  // Rumination & Resting Peak (08:00 - 12:00)
+  const rumination = getCircadianPhase(10.0);
+  assert.equal(rumination.phase, 'rumination_rest');
+  assert.ok(rumination.titleTr.includes('Geviş Getirme'));
+
+  // Midday Care & Feed Push (12:00 - 15:00)
+  const midday = getCircadianPhase(13.5);
+  assert.equal(midday.phase, 'midday_care');
+  assert.ok(midday.titleTr.includes('Yem İtme'));
+
+  // Afternoon Estrus Activity Check (15:00 - 17:30)
+  const heatCheck = getCircadianPhase(16.0);
+  assert.equal(heatCheck.phase, 'afternoon_heat_check');
+
+  // Evening Milking (17:30 - 20:00)
+  const evening = getCircadianPhase(18.5);
+  assert.equal(evening.phase, 'evening_milking');
+
+  // Milk Tanker Truck Pickup (20:00 - 22:00)
+  const tanker = getCircadianPhase(20.5);
+  assert.equal(tanker.phase, 'milk_pickup');
+  assert.ok(tanker.icon.includes('🚛'));
+
+  // Night Rest & Calvings (22:00 - 05:00)
+  const night = getCircadianPhase(2.0);
+  assert.equal(night.phase, 'night_rest');
 });

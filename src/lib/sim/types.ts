@@ -41,6 +41,15 @@ export type BarnType =
   | 'pasture'        // Mera tabanlı
   | 'compost_bedded';// Kompost yataklı
 
+export type DailyCircadianPhase =
+  | 'morning_milking'     // 05:00 - 08:00 (Şafak & Sabah Sağımı 1. Vardiya)
+  | 'rumination_rest'     // 08:00 - 12:00 (Geviş Getirme & Dinlenme Zirvesi)
+  | 'midday_care'         // 12:00 - 15:00 (Öğle Sıcaklığı, Suluk & Yem İtme)
+  | 'afternoon_heat_check'// 15:00 - 17:30 (Kızgınlık Tespiti & Pedometre Zirvesi)
+  | 'evening_milking'     // 17:30 - 20:00 (Akşam Sağımı & 2. Taze Yem)
+  | 'milk_pickup'         // 20:00 - 22:00 (Fabrika Süt Tankeri Gelir & Analiz)
+  | 'night_rest';         // 22:00 - 05:00 (Gece Dinlenmesi, Fotoperiyot & Doğumlar)
+
 export type MilkingSystemType =
   | 'pipeline'       // Boru hatlı sağım
   | 'parallel'       // Paralel sağım ünitesi (ör. 2x8)
@@ -198,6 +207,13 @@ export interface Cow {
   behaviorState: 'grazing' | 'walking' | 'resting' | 'milking' | 'eating';
   behaviorTimer: number;
 
+  // Doğal Yaşam Döngüsü & Biyolojik İzleme
+  udderFillPct: number;        // Meme doluluk oranı % (0 - 100)
+  ruminationMinutesToday: number; // Bugün yapılan geviş getirme (dakika, normal: 450-550)
+  isStandingHeat: boolean;     // Östrus (Kızgınlık) aktif mi?
+  standingHeatHoursLeft: number; // Kalan kızgınlık penceresi (saat)
+  activityIndex: number;       // Pedometre aktivite endeksi (1.0 normal, 2.5-3.5 kızgınlık)
+
   events: CowEvent[];
 }
 
@@ -230,6 +246,7 @@ export interface FarmFacility {
   milkingSystem: MilkingSystemType;
   milkingTimesPerDay: 2 | 3;     // 2x veya 3x sağım
   organicCertified: boolean;     // Organik süt sertifikası
+  automaticFeedPusher: boolean;  // Otomatik yem itme robotu (Juno/Lely)
 }
 
 export interface FinancialRecord {
@@ -283,6 +300,17 @@ export interface FarmState {
   cows: Cow[];
   customBreeds: Breed[];
 
+  // Doğal Sirkadiyen Ritm & Günlük Çiftlik Rutini
+  circadianPhase: DailyCircadianPhase;
+  bulkTankLiters: number;        // Soğutma tankındaki anlık süt hacmi (L)
+  bulkTankTempC: number;         // Süt soğutma tankı derecesi (3.8 °C)
+  feedPushed: boolean;           // Yemler ineklerin önüne itildi mi?
+  feedPushCountdownHours: number;// Bir sonraki yem itme için kalan süre (saat)
+  morningMilkingDone: boolean;   // Bugün sabah sağımı yapıldı mı?
+  eveningMilkingDone: boolean;   // Bugün akşam sağımı yapıldı mı?
+  dailyTankerArrived: boolean;   // Süt fabrikası tankeri bugün sütü çekti mi?
+  lastTankerPayment: number;     // En son teslim edilen süt geliri (€/₺)
+
   // Besleme & Depo
   feedStockKg: Record<FeedId, number>;
   activeRation: RationItem[];
@@ -332,6 +360,81 @@ export interface NotificationItem {
 // Uluslararası Standart Zootekni & Oyun Fonksiyonları
 // (International Livestock & Gaming Standards)
 // ==========================================
+
+export function getCircadianPhase(hour: number): {
+  phase: DailyCircadianPhase;
+  titleTr: string;
+  titleEn: string;
+  icon: string;
+  descTr: string;
+  descEn: string;
+} {
+  const normHour = ((hour % 24) + 24) % 24;
+  if (normHour >= 5.0 && normHour < 8.0) {
+    return {
+      phase: 'morning_milking',
+      titleTr: 'Sabah Sağımı & Yemleme (05:00 - 08:00)',
+      titleEn: 'Morning Milking & Feeding (05:00 - 08:00)',
+      icon: '🌅',
+      descTr: 'Sağımhanede 1. sağım seansı yapılıyor. TMR mikser vagonu taze rasyon dağıtıyor.',
+      descEn: 'First milking session in progress. Fresh TMR mix delivered to bunks.',
+    };
+  } else if (normHour >= 8.0 && normHour < 12.0) {
+    return {
+      phase: 'rumination_rest',
+      titleTr: 'Geviş Getirme & Dinlenme (08:00 - 12:00)',
+      titleEn: 'Rumination & Resting Peak (08:00 - 12:00)',
+      icon: '🌿',
+      descTr: 'Sürü duraklarda sakince yatarak geviş getiriyor (dakikada ~55 çene hareketi). Gübre sıyırıcılar aktif.',
+      descEn: 'Herd is lying in freestall cubicles ruminating. Manure scrapers active.',
+    };
+  } else if (normHour >= 12.0 && normHour < 15.0) {
+    return {
+      phase: 'midday_care',
+      titleTr: 'Öğle Bakımı & Yem İtme (12:00 - 15:00)',
+      titleEn: 'Midday Care & Feed Push (12:00 - 15:00)',
+      icon: '☀️',
+      descTr: 'Günün en sıcak saatleri; suluk tüketimi zirvede. İneklerin burnuyla ittiği yemlerin tekrar önüne itilmesi gerekir.',
+      descEn: 'Peak warmth; high water trough visits. Feed pushed closer to ensure optimal DMI.',
+    };
+  } else if (normHour >= 15.0 && normHour < 17.5) {
+    return {
+      phase: 'afternoon_heat_check',
+      titleTr: 'Kızgınlık & Aktivite Gözlemi (15:00 - 17:30)',
+      titleEn: 'Estrus Check & Activity Peak (15:00 - 17:30)',
+      icon: '🔍',
+      descTr: 'Pedometre ve çan sensörleri kızgınlık aktivitesini izliyor. Tohumlama için 12 saatlik altın pencere.',
+      descEn: 'Pedometer collar sensors flag standing heat. Prime 12-hour insemination window.',
+    };
+  } else if (normHour >= 17.5 && normHour < 20.0) {
+    return {
+      phase: 'evening_milking',
+      titleTr: 'Akşam Sağımı & 2. Besleme (17:30 - 20:00)',
+      titleEn: 'Evening Milking & 2nd Feed (17:30 - 20:00)',
+      icon: '🌆',
+      descTr: 'Günün 2. sağım seansı. Memeler boşaltılıyor ve post-dip dezenfektan uygulanıyor.',
+      descEn: 'Second milking session. Udders emptied and post-dipped against mastitis.',
+    };
+  } else if (normHour >= 20.0 && normHour < 22.0) {
+    return {
+      phase: 'milk_pickup',
+      titleTr: 'Süt Tankeri & Kalite Kabul (20:00 - 22:00)',
+      titleEn: 'Milk Tanker Pickup & Testing (20:00 - 22:00)',
+      icon: '🚛',
+      descTr: 'Süt fabrikası tankeri soğutma tankını boşaltıyor; SCC ve antibiyotik testi sonrası ödeme yapılıyor.',
+      descEn: 'Dairy processing tanker collects milk from bulk tank; lab assay approves payment.',
+    };
+  } else {
+    return {
+      phase: 'night_rest',
+      titleTr: 'Gece Dinlenmesi & Doğum Penceresi (22:00 - 05:00)',
+      titleEn: 'Night Rest & Calving Window (22:00 - 05:00)',
+      icon: '🌙',
+      descTr: 'Barınak 8 saatlik melatonin fotoperiyodunda. Gebe ineklerde sessiz gece doğumu ihtimali yüksek.',
+      descEn: 'Barn lights dim for 8h melatonin cycle. High probability of quiet nocturnal calvings.',
+    };
+  }
+}
 
 /**
  * Energy Corrected Milk (ECM / Enerjiye Göre Düzeltilmiş Süt) - ICAR & NRC Standardı

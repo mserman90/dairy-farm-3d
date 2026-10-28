@@ -26,6 +26,8 @@ export const FeedingModal: React.FC = () => {
     updateRation,
     toggleRationAutoMode,
     buyFeedStock,
+    pushFeedAction,
+    installAutomaticFeedPusherAction,
   } = useFarmStore();
 
   const [customRation, setCustomRation] = useState<RationItem[]>(
@@ -105,6 +107,55 @@ export const FeedingModal: React.FC = () => {
           >
             {farm.rationAutoMode ? 'Otomatik Aktif' : 'Manuele Geç'}
           </button>
+        </div>
+
+        {/* Yem İtme Rutini & Otomatik İtici Robot */}
+        <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🌾</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white">Yemlik Önü Yem İtme Durumu:</span>
+                <span
+                  className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                    farm.feedPushed
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                      : 'bg-amber-950 text-amber-300 border border-amber-700 animate-pulse'
+                  }`}
+                >
+                  {farm.feedPushed
+                    ? `İtilmiş (${farm.feedPushCountdownHours.toFixed(1)}s kaldı - DMI %100)`
+                    : '⚠️ Yem İtme Gerekli! (DMI %82)'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                İnekler yedikçe yemi ileri iter. 4 saatte bir itilmezse kaba yeme ulaşamazlar ve süt düşer.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={pushFeedAction}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold transition shadow"
+            >
+              Yemi İt (P)
+            </button>
+
+            {!farm.facilities.automaticFeedPusher ? (
+              <button
+                onClick={() => installAutomaticFeedPusherAction()}
+                disabled={farm.cash < 6500}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold transition disabled:opacity-40"
+              >
+                🤖 Yem İtme Robotu Satın Al (€6,500)
+              </button>
+            ) : (
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">
+                ✓ Otomatik Robot Aktif
+              </span>
+            )}
+          </div>
         </div>
 
         {/* TMR Balance Analysis Dashboard */}

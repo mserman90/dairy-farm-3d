@@ -3,7 +3,7 @@ import { calculateMilkPayment, calculateOperatingExpenses } from './economy';
 import { advanceCowDay } from './herd';
 import { updateCowHealth } from './health';
 import { analyzeRation, generateOptimalRation } from './nutrition';
-import { Cow, FarmState, FeedId, FinancialRecord, NotificationItem } from './types';
+import { Cow, FarmState, FeedId, FinancialRecord, NotificationItem, getCircadianPhase } from './types';
 import { generateDailyWeather, getSeasonForDay } from './weather';
 
 export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 'normal'): FarmState {
@@ -35,6 +35,11 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 95000,
       fatPct: 3.75,
       proteinPct: 3.22,
+      udderFillPct: 65,
+      ruminationMinutesToday: 480,
+      isStandingHeat: false,
+      standingHeatHoursLeft: 0,
+      activityIndex: 1.0,
       ikasMilkLockHours: 0,
       ikasMeatLockDays: 0,
       activeDrugName: null,
@@ -81,6 +86,11 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 120000,
       fatPct: 3.7,
       proteinPct: 3.2,
+      udderFillPct: 70,
+      ruminationMinutesToday: 490,
+      isStandingHeat: false,
+      standingHeatHoursLeft: 0,
+      activityIndex: 1.0,
       ikasMilkLockHours: 0,
       ikasMeatLockDays: 0,
       activeDrugName: null,
@@ -127,6 +137,11 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 135000,
       fatPct: 3.8,
       proteinPct: 3.25,
+      udderFillPct: 55,
+      ruminationMinutesToday: 470,
+      isStandingHeat: false,
+      standingHeatHoursLeft: 0,
+      activityIndex: 1.0,
       ikasMilkLockHours: 0,
       ikasMeatLockDays: 0,
       activeDrugName: null,
@@ -173,6 +188,11 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 80000,
       fatPct: 5.2,
       proteinPct: 3.95,
+      udderFillPct: 60,
+      ruminationMinutesToday: 510,
+      isStandingHeat: false,
+      standingHeatHoursLeft: 0,
+      activityIndex: 1.0,
       ikasMilkLockHours: 0,
       ikasMeatLockDays: 0,
       activeDrugName: null,
@@ -219,6 +239,11 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 85000,
       fatPct: 4.0,
       proteinPct: 3.4,
+      udderFillPct: 0,
+      ruminationMinutesToday: 530,
+      isStandingHeat: false,
+      standingHeatHoursLeft: 0,
+      activityIndex: 0.95,
       ikasMilkLockHours: 0,
       ikasMeatLockDays: 0,
       activeDrugName: null,
@@ -277,6 +302,11 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       scc: 90000 + idx * 10000,
       fatPct: b.fatPct,
       proteinPct: b.proteinPct,
+      udderFillPct: 60,
+      ruminationMinutesToday: 480,
+      isStandingHeat: false,
+      standingHeatHoursLeft: 0,
+      activityIndex: 1.0,
       ikasMilkLockHours: 0,
       ikasMeatLockDays: 0,
       activeDrugName: null,
@@ -299,6 +329,14 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       behaviorTimer: 30,
       events: [],
     });
+  });
+
+  initialCows.forEach((c) => {
+    c.udderFillPct = c.state === 'lactating' ? 65 : 0;
+    c.ruminationMinutesToday = 480;
+    c.isStandingHeat = false;
+    c.standingHeatHoursLeft = 0;
+    c.activityIndex = 1.0;
   });
 
   const optimalRation = generateOptimalRation(30);
@@ -363,6 +401,16 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
     cows: initialCows,
     customBreeds: [],
 
+    circadianPhase: 'morning_milking',
+    bulkTankLiters: 150,
+    bulkTankTempC: 3.8,
+    feedPushed: true,
+    feedPushCountdownHours: 3.5,
+    morningMilkingDone: false,
+    eveningMilkingDone: false,
+    dailyTankerArrived: false,
+    lastTankerPayment: 0,
+
     feedStockKg: initialFeedStock,
     activeRation: optimalRation,
     rationAutoMode: true,
@@ -413,26 +461,306 @@ export function tickFarmSimulation(
     next.vetCooldownMinutes = Math.max(0, next.vetCooldownMinutes - simMinutesElapsed);
   }
 
-  // 3D görsel davranışları güncelle
+  // 1. Sirkadiyen Ritm & Günün Evresi
+  const phaseInfo = getCircadianPhase(next.hour);
+  if (next.circadianPhase !== phaseInfo.phase) {
+    const prevPhase = next.circadianPhase;
+    next.circadianPhase = phaseInfo.phase;
+
+    // Önemli vardiya geçişlerinde bildirim üret
+    if (
+      phaseInfo.phase === 'morning_milking' ||
+      phaseInfo.phase === 'evening_milking' ||
+      phaseInfo.phase === 'milk_pickup'
+    ) {
+      notifications.push({
+        id: `phase_${next.day}_${phaseInfo.phase}`,
+        day: next.day,
+        hour: Math.floor(next.hour),
+        type: 'info',
+        titleTr: `${phaseInfo.icon} ${phaseInfo.titleTr}`,
+        titleEn: `${phaseInfo.icon} ${phaseInfo.titleEn}`,
+        messageTr: phaseInfo.descTr,
+        messageEn: phaseInfo.descEn,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  // 2. Yem İtme Rutini (Feed Pushing Routine)
+  if (next.facilities.automaticFeedPusher) {
+    next.feedPushed = true;
+    next.feedPushCountdownHours = 4.0;
+  } else {
+    next.feedPushCountdownHours = Math.max(0, next.feedPushCountdownHours - simHoursElapsed);
+    if (next.feedPushCountdownHours <= 0 && next.feedPushed) {
+      next.feedPushed = false;
+      notifications.push({
+        id: `feed_push_needed_${next.day}_${Math.floor(next.hour)}`,
+        day: next.day,
+        hour: Math.floor(next.hour),
+        type: 'warning',
+        titleTr: '⚠️ Yem İtme Zamanı! (Feed Push Alert)',
+        titleEn: '⚠️ Feed Push Needed!',
+        messageTr: 'İnekler yemi burnuyla uzaklaştırdı! Yem tüketiminin düşmemesi için yemi itin (Kısayol: P).',
+        messageEn: 'Feed pushed out of reach! Push feed back to maintain optimal intake (Shortcut: P).',
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  // 3. Sürekli Biyolojik Süreçler: Meme Dolumu, Geviş Getirme & Kızgınlık (Estrus)
   for (const cow of next.cows) {
+    if (cow.state === 'culled') continue;
+
+    // A) Meme Dolumu (Udder Filling)
+    if (cow.state === 'lactating') {
+      const fillRatePerHour = (cow.milkYieldTodayL / 24) * 4.2;
+      cow.udderFillPct = Math.min(100, Math.round(((cow.udderFillPct || 0) + fillRatePerHour * simHoursElapsed) * 10) / 10);
+    } else {
+      cow.udderFillPct = 0;
+    }
+
+    // B) Geviş Getirme (Rumination Minutes)
+    if (next.circadianPhase === 'rumination_rest' || next.circadianPhase === 'night_rest') {
+      const isSick = cow.health !== 'healthy';
+      const rumAdd = simMinutesElapsed * (isSick ? 0.35 : 0.65);
+      cow.ruminationMinutesToday = Math.min(550, Math.round((cow.ruminationMinutesToday || 0) + rumAdd));
+    }
+
+    // C) Kızgınlık (Estrus Cycle - Standing Heat)
+    if (cow.daysPregnant === 0 && (cow.state === 'lactating' || cow.state === 'heifer')) {
+      if (cow.isStandingHeat) {
+        cow.standingHeatHoursLeft = Math.max(0, (cow.standingHeatHoursLeft || 14) - simHoursElapsed);
+        cow.activityIndex = 2.8;
+        if (cow.standingHeatHoursLeft <= 0) {
+          cow.isStandingHeat = false;
+          cow.activityIndex = 1.0;
+        }
+      } else {
+        // 21 günde bir kızgınlık şansı
+        const cycleDay = (next.day + cow.tagNumber * 3) % 21;
+        if (cycleDay === 0 && Math.floor(next.hour) === 15 && Math.random() < 0.25) {
+          cow.isStandingHeat = true;
+          cow.standingHeatHoursLeft = 14 + Math.random() * 4;
+          cow.activityIndex = 3.2;
+          notifications.push({
+            id: `heat_${cow.id}_${next.day}`,
+            day: next.day,
+            hour: Math.floor(next.hour),
+            type: 'info',
+            titleTr: `🔥 Kızgınlık Uyarısı: #${cow.tagNumber} ${cow.name}`,
+            titleEn: `🔥 Standing Heat Alert: #${cow.tagNumber} ${cow.name}`,
+            messageTr: 'Pedometre sensörü aktivite artışı tespit etti! Tohumlama için en uygun 12 saatlik pencere.',
+            messageEn: 'Activity sensor spiked! Prime 12-hour insemination window.',
+            timestamp: Date.now(),
+          });
+        }
+      }
+    }
+
+    // D) Sirkadiyen Ritm Doğrultusunda 3D Konumlandırma ve Davranış
     cow.behaviorTimer -= simMinutesElapsed;
     if (cow.behaviorTimer <= 0) {
-      const states: ('grazing' | 'walking' | 'resting' | 'eating')[] = ['grazing', 'walking', 'resting', 'eating'];
-      cow.behaviorState = states[Math.floor(Math.random() * states.length)];
-      cow.behaviorTimer = 20 + Math.random() * 40;
+      cow.behaviorTimer = 25 + Math.random() * 35;
 
-      if (cow.behaviorState === 'walking') {
+      if (cow.state === 'calf') {
+        // Buzağılar kulübe alanında kalır
+        cow.behaviorState = Math.random() < 0.6 ? 'resting' : 'eating';
+        cow.position[0] = 22 + (cow.tagNumber % 4) * 2 + (Math.random() - 0.5) * 1.5;
+        cow.position[2] = -16 + Math.floor((cow.tagNumber % 8) / 4) * 3 + (Math.random() - 0.5) * 1.5;
+        cow.rotationY = (Math.random() - 0.5) * 0.8;
+      } else if (next.circadianPhase === 'morning_milking' || next.circadianPhase === 'evening_milking') {
+        // Sağım zamanı: Sağımhane kapısında toplanma
+        cow.behaviorState = 'milking';
+        cow.position[0] = -14 + (Math.random() - 0.5) * 4;
+        cow.position[2] = -11 + (Math.random() - 0.5) * 3;
+        cow.rotationY = -Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+      } else if (
+        (next.hour >= 7.5 && next.hour <= 10.0) ||
+        (next.hour >= 16.5 && next.hour <= 18.0)
+      ) {
+        // Yemlik hattı boyunca dizilip taze TMR yeme
+        cow.behaviorState = 'eating';
+        cow.position[0] = -14 + ((cow.tagNumber * 3) % 24);
+        cow.position[2] = 2.5 + (Math.random() - 0.5) * 0.6;
+        cow.rotationY = Math.PI; // Yemliğe dönük
+      } else if (
+        next.circadianPhase === 'rumination_rest' ||
+        next.circadianPhase === 'night_rest'
+      ) {
+        // Duraklarda yatıp dinlenme ve geviş getirme
+        cow.behaviorState = 'resting';
+        cow.position[0] = -14 + ((cow.tagNumber * 2.5) % 24);
+        cow.position[2] = 9.0 + (Math.random() - 0.5) * 2.0;
+        cow.rotationY = (Math.random() - 0.5) * 0.5;
+      } else {
+        // Öğle serbest dolaşma & suluk ziyareti
+        cow.behaviorState = Math.random() < 0.5 ? 'walking' : 'grazing';
+        cow.position[0] += (Math.random() - 0.5) * 1.8;
+        cow.position[2] += (Math.random() - 0.5) * 1.8;
         cow.rotationY = Math.random() * Math.PI * 2;
-        cow.position[0] += (Math.random() - 0.5) * 1.5;
-        cow.position[2] += (Math.random() - 0.5) * 1.5;
       }
     }
   }
 
-  // Gün dönümü kontrolü (hour >= 24)
+  // 4. Sabah Sağımı Seansı (06:00 - 08:00)
+  if (!next.morningMilkingDone && next.hour >= 6.0 && next.hour < 12.0) {
+    const lactating = next.cows.filter((c) => c.state === 'lactating');
+    let shiftYield = 0;
+    let ikasContamination = false;
+    let contaminatedTag = 0;
+
+    for (const c of lactating) {
+      const cowYield = c.milkYieldTodayL * 0.52;
+      c.udderFillPct = 0;
+
+      if (c.ikasMilkLockHours > 0) {
+        if (!c.isMilkIsolated) {
+          ikasContamination = true;
+          contaminatedTag = c.tagNumber;
+        } else {
+          continue; // Güvenli kova sağımı
+        }
+      }
+      shiftYield += cowYield;
+    }
+
+    if (ikasContamination) {
+      next.bulkTankLiters = 0;
+      next.cash -= 350;
+      next.stats.ikasLockBreaches += 1;
+      notifications.push({
+        id: `ikas_morning_${next.day}`,
+        day: next.day,
+        hour: 6,
+        type: 'ikas',
+        titleTr: '🚨 KRİTİK İKAS İHLALİ (SABAH SAĞIMI)',
+        titleEn: '🚨 CRITICAL WITHDRAWAL BREACH',
+        messageTr: `#${contaminatedTag} antibiyotikli inek izole edilmeden sabah sağımına girdi! Soğutma tankı döküldü ve €350 imha cezası kesildi!`,
+        messageEn: `#${contaminatedTag} treated cow contaminated bulk tank! Tank dumped & €350 penalty!`,
+        timestamp: Date.now(),
+      });
+    } else {
+      next.bulkTankLiters += Math.round(shiftYield * 10) / 10;
+      notifications.push({
+        id: `morning_milking_done_${next.day}`,
+        day: next.day,
+        hour: 6,
+        type: 'info',
+        titleTr: '🌅 Sabah Sağımı Tamamlandı',
+        titleEn: '🌅 Morning Milking Complete',
+        messageTr: `${Math.round(shiftYield)} L sabah sütü soğutma tankına aktarıldı (Tank: ${Math.round(next.bulkTankLiters)} L, 3.8°C).`,
+        messageEn: `${Math.round(shiftYield)} L morning milk transferred to bulk cooling tank.`,
+        timestamp: Date.now(),
+      });
+    }
+    next.morningMilkingDone = true;
+  }
+
+  // 5. Akşam Sağımı Seansı (18:00 - 20:00)
+  if (!next.eveningMilkingDone && next.hour >= 18.0 && next.hour < 20.5) {
+    const lactating = next.cows.filter((c) => c.state === 'lactating');
+    let shiftYield = 0;
+    let ikasContamination = false;
+    let contaminatedTag = 0;
+
+    for (const c of lactating) {
+      const cowYield = c.milkYieldTodayL * 0.48;
+      c.udderFillPct = 0;
+
+      if (c.ikasMilkLockHours > 0) {
+        if (!c.isMilkIsolated) {
+          ikasContamination = true;
+          contaminatedTag = c.tagNumber;
+        } else {
+          continue;
+        }
+      }
+      shiftYield += cowYield;
+    }
+
+    if (ikasContamination) {
+      next.bulkTankLiters = 0;
+      next.cash -= 350;
+      next.stats.ikasLockBreaches += 1;
+      notifications.push({
+        id: `ikas_evening_${next.day}`,
+        day: next.day,
+        hour: 18,
+        type: 'ikas',
+        titleTr: '🚨 KRİTİK İKAS İHLALİ (AKŞAM SAĞIMI)',
+        titleEn: '🚨 CRITICAL WITHDRAWAL BREACH',
+        messageTr: `#${contaminatedTag} antibiyotikli inek akşam sağımında tanka karıştı! Soğutma tankı döküldü ve €350 ceza kesildi!`,
+        messageEn: `#${contaminatedTag} treated cow contaminated evening tank! Dumped & €350 penalty!`,
+        timestamp: Date.now(),
+      });
+    } else {
+      next.bulkTankLiters += Math.round(shiftYield * 10) / 10;
+      notifications.push({
+        id: `evening_milking_done_${next.day}`,
+        day: next.day,
+        hour: 18,
+        type: 'info',
+        titleTr: '🌆 Akşam Sağımı Tamamlandı',
+        titleEn: '🌆 Evening Milking Complete',
+        messageTr: `${Math.round(shiftYield)} L akşam sütü toplandı. Günlük tank doluluğu: ${Math.round(next.bulkTankLiters)} L.`,
+        messageEn: `${Math.round(shiftYield)} L evening milk collected. Daily tank total: ${Math.round(next.bulkTankLiters)} L.`,
+        timestamp: Date.now(),
+      });
+    }
+    next.eveningMilkingDone = true;
+  }
+
+  // 6. Süt Fabrikası Tankeri Gelir & Kalite Kabul (20:30)
+  if (!next.dailyTankerArrived && next.hour >= 20.5 && next.hour < 24.0) {
+    const lactating = next.cows.filter((c) => c.state === 'lactating');
+    const countLact = Math.max(1, lactating.length);
+    const avgFat = lactating.reduce((s, c) => s + c.fatPct, 0) / countLact;
+    const avgProt = lactating.reduce((s, c) => s + c.proteinPct, 0) / countLact;
+    const avgScc = lactating.reduce((s, c) => s + c.scc, 0) / countLact;
+
+    const milkPayment = calculateMilkPayment(
+      next.bulkTankLiters,
+      avgFat,
+      avgProt,
+      avgScc,
+      next.market.baseMilkPricePerL,
+      next.facilities.organicCertified
+    );
+
+    next.cash += milkPayment.grossPayment;
+    next.lastTankerPayment = milkPayment.grossPayment;
+    next.stats.totalRevenue += milkPayment.grossPayment;
+    next.stats.totalMilkProducedL += next.bulkTankLiters;
+
+    if (next.bulkTankLiters > 0) {
+      notifications.push({
+        id: `tanker_pickup_${next.day}`,
+        day: next.day,
+        hour: 20,
+        type: 'success',
+        titleTr: '🚛 Süt Tankeri Geldi & Kabul Edildi',
+        titleEn: '🚛 Milk Tanker Pickup & Accepted',
+        messageTr: `${Math.round(next.bulkTankLiters)} L süt fabrikaya teslim edildi. Kalite: SCC ${(avgScc / 1000).toFixed(0)}k. Hesaba +€${milkPayment.grossPayment.toFixed(0)} aktarıldı.`,
+        messageEn: `${Math.round(next.bulkTankLiters)} L milk collected. Lab: SCC ${(avgScc / 1000).toFixed(0)}k. Credited +€${milkPayment.grossPayment.toFixed(0)}.`,
+        timestamp: Date.now(),
+      });
+    }
+
+    next.bulkTankLiters = 0;
+    next.dailyTankerArrived = true;
+  }
+
+  // 7. Gün Dönümü Kontrolü (hour >= 24)
   if (next.hour >= 24) {
     next.hour -= 24;
     next.day += 1;
+
+    // Günlük döngü bayraklarını sıfırla
+    next.morningMilkingDone = false;
+    next.eveningMilkingDone = false;
+    next.dailyTankerArrived = false;
 
     next.season = getSeasonForDay(next.day);
     const dailyWeather = generateDailyWeather(next.day, next.season);
@@ -446,6 +774,9 @@ export function tickFarmSimulation(
 
     let dailyFeedCost = 0;
     let outOfFeed = false;
+
+    // Yem itilmediyse DMI %15 düşer
+    const feedPushBonus = next.feedPushed ? 1.0 : 0.82;
 
     for (const item of next.activeRation) {
       const totalDailyItemKg = item.kgFreshWeight * cowCount;
@@ -467,7 +798,7 @@ export function tickFarmSimulation(
       dailyFeedCost += totalDailyItemKg * (next.market.feedPrices[item.feedId] || 0.1);
     }
 
-    const feedFulfillment = outOfFeed ? 0.6 : Math.min(1.1, rationAnalysis.dryMatterIntakeKg / 22.0);
+    const feedFulfillment = (outOfFeed ? 0.6 : Math.min(1.1, rationAnalysis.dryMatterIntakeKg / 22.0)) * feedPushBonus;
 
     const newBornCalves: Cow[] = [];
     const allBreeds = [...DEFAULT_BREEDS, ...next.customBreeds];
@@ -499,76 +830,24 @@ export function tickFarmSimulation(
         24,
         cow.lactationDay === 1
       );
+
+      // Yeni gün için geviş getirmeyi sıfırla
+      cow.ruminationMinutesToday = 0;
     }
 
     if (newBornCalves.length > 0) {
+      newBornCalves.forEach((calf) => {
+        calf.udderFillPct = 0;
+        calf.ruminationMinutesToday = 120;
+        calf.isStandingHeat = false;
+        calf.standingHeatHoursLeft = 0;
+        calf.activityIndex = 1.0;
+      });
       next.cows.push(...newBornCalves);
       next.stats.calvesBorn += newBornCalves.length;
     }
 
-    // 4. Günlük Süt Hasadı & İKAS Arınma Kontrolü (Tosun Paşa İKAS Kilidi)
-    const lactatingCows = next.cows.filter((c) => c.state === 'lactating');
-    let totalLiters = 0;
-    let sumFat = 0;
-    let sumProtein = 0;
-    let sumScc = 0;
-    let ikasContamination = false;
-    let contaminatedCowTag = 0;
-
-    for (const c of lactatingCows) {
-      // Eğer ineğin süt arınma süresi aktifse
-      if (c.ikasMilkLockHours > 0) {
-        if (!c.isMilkIsolated) {
-          // İnek izole edilmeden sağım hattına verilmiş -> TANK KONTAMİNASYONU!
-          ikasContamination = true;
-          contaminatedCowTag = c.tagNumber;
-        } else {
-          // İnek kovaya sağıldı ve imha edildi. Tanka karışmadı!
-          continue;
-        }
-      }
-
-      totalLiters += c.milkYieldTodayL;
-      sumFat += c.fatPct;
-      sumProtein += c.proteinPct;
-      sumScc += c.scc;
-    }
-
-    const countLact = Math.max(1, lactatingCows.length);
-    const avgFat = sumFat / countLact;
-    const avgProt = sumProtein / countLact;
-    const avgScc = sumScc / countLact;
-
-    let milkPayment = calculateMilkPayment(
-      totalLiters,
-      avgFat,
-      avgProt,
-      avgScc,
-      next.market.baseMilkPricePerL,
-      next.facilities.organicCertified
-    );
-
-    let ikasPenalty = 0;
-    if (ikasContamination) {
-      // Süt fabrikası tankı reddetti! Günlük süt geliri sıfırlandı ve €350 imha cezası kesildi!
-      ikasPenalty = 350;
-      milkPayment.grossPayment = 0;
-      next.stats.ikasLockBreaches += 1;
-
-      notifications.push({
-        id: `ikas_breach_${next.day}`,
-        day: next.day,
-        hour: 8,
-        type: 'ikas',
-        titleTr: '🚨 KRİTİK İKAS İHLALİ (SÜT İMHASI)',
-        titleEn: '🚨 CRITICAL WITHDRAWAL BREACH',
-        messageTr: `#${contaminatedCowTag} küpeli antibiyotikli inek tanka sağıldı! Süt fabrikası tankı reddetti, döküldü ve €350 ceza kesildi!`,
-        messageEn: `#${contaminatedCowTag} treated cow contaminated bulk tank! Entire tank dumped & €350 penalty assessed!`,
-        timestamp: Date.now(),
-      });
-    }
-
-    // 5. Günlük İşletme Masrafları
+    // 8. Günlük İşletme Masrafları
     const operatingExpenses = calculateOperatingExpenses(
       next.cows,
       next.facilities,
@@ -584,23 +863,21 @@ export function tickFarmSimulation(
       operatingExpenses.laborExpense +
       operatingExpenses.energyExpense +
       operatingExpenses.equipmentMaintenance +
-      dailyInterest +
-      ikasPenalty;
+      dailyInterest;
 
-    const netProfit = milkPayment.grossPayment - totalDayExpense;
-    next.cash += netProfit;
+    next.cash -= totalDayExpense;
 
     const finRecord: FinancialRecord = {
       day: next.day,
-      milkRevenue: milkPayment.grossPayment,
+      milkRevenue: next.lastTankerPayment || 0,
       animalSalesRevenue: 0,
       feedExpense: Math.round(dailyFeedCost * 100) / 100,
       laborExpense: operatingExpenses.laborExpense,
       vetExpense: 0,
       energyExpense: operatingExpenses.energyExpense,
       loanInterestExpense: Math.round(dailyInterest * 100) / 100,
-      ikasContaminationPenalty: ikasPenalty,
-      netProfit: Math.round(netProfit * 100) / 100,
+      ikasContaminationPenalty: 0,
+      netProfit: Math.round(((next.lastTankerPayment || 0) - totalDayExpense) * 100) / 100,
     };
 
     next.historicalFinancials.push(finRecord);
@@ -608,10 +885,20 @@ export function tickFarmSimulation(
       next.historicalFinancials.shift();
     }
 
-    next.stats.totalMilkProducedL += totalLiters;
-    next.stats.totalRevenue += milkPayment.grossPayment;
     next.stats.totalExpenses += totalDayExpense;
-    next.stats.averageScc = Math.round(avgScc);
+
+    const activeLactating = next.cows.filter((c) => c.state === 'lactating');
+    if (activeLactating.length > 0) {
+      next.stats.averageScc = Math.round(
+        activeLactating.reduce((sum, c) => sum + c.scc, 0) / activeLactating.length
+      );
+    }
+
+    if (next.facilities.manureScraperActive) {
+      next.facilities.cleanlinessScore = Math.min(0.96, next.facilities.cleanlinessScore + 0.02);
+    } else {
+      next.facilities.cleanlinessScore = Math.max(0.4, next.facilities.cleanlinessScore - 0.05);
+    }
 
     if (next.cash < -20000 && next.debt > 50000) {
       notifications.push({
@@ -619,18 +906,12 @@ export function tickFarmSimulation(
         day: next.day,
         hour: 9,
         type: 'error',
-        titleTr: 'İFLAS UYARISI!',
-        titleEn: 'BANKRUPTCY WARNING!',
-        messageTr: 'Nakit bakiye kritik seviyede negatif! Acilen hayvan satışı veya kredi yapılandırması yapmalısınız.',
-        messageEn: 'Cash balance critically negative! You must urgently sell cattle or restructure loans.',
+        titleTr: 'İflas Riski!',
+        titleEn: 'Bankruptcy Alert!',
+        messageTr: 'Nakit paranız kritik seviyede negatif. Banka kredi limitiniz tükendi.',
+        messageEn: 'Your cash reserves are critically negative.',
         timestamp: Date.now(),
       });
-    }
-
-    if (next.facilities.manureScraperActive) {
-      next.facilities.cleanlinessScore = Math.min(0.96, next.facilities.cleanlinessScore + 0.02);
-    } else {
-      next.facilities.cleanlinessScore = Math.max(0.40, next.facilities.cleanlinessScore - 0.05);
     }
   }
 
