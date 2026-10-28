@@ -51,7 +51,7 @@ function getCowCoatTexture(baseColorHex: string, spotColorHex: string, patternTy
 
 export const Farm3DCanvas: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const { farm, selectedCowId, setSelectedCowId, cameraPreset } = useFarmStore();
+  const { farm, selectedCowId, setSelectedCowId, cameraPreset, graphicsQuality } = useFarmStore();
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -372,6 +372,26 @@ export const Farm3DCanvas: React.FC = () => {
       cameraCurrentPos.current.set(-14, 14, 22);
     }
   }, [cameraPreset]);
+
+  // Adjust graphics quality presets
+  useEffect(() => {
+    if (!rendererRef.current) return;
+    const renderer = rendererRef.current;
+    if (graphicsQuality === 'low') {
+      renderer.setPixelRatio(1);
+      renderer.shadowMap.enabled = false;
+    } else if (graphicsQuality === 'medium') {
+      renderer.setPixelRatio(1);
+      renderer.shadowMap.enabled = true;
+    } else if (graphicsQuality === 'high') {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.shadowMap.enabled = true;
+    } else {
+      // Ultra
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
+      renderer.shadowMap.enabled = true;
+    }
+  }, [graphicsQuality]);
 
   // Update Dynamic Lighting & Sky based on Sim Time & Weather
   useEffect(() => {

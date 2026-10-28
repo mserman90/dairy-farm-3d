@@ -7,7 +7,15 @@ import { calculateInbreedingCoeff, attemptInsemination } from '../genetics.js';
 import { updateCowHealth, treatCow, evaluateColostrumBrix } from '../health.js';
 import { calculateMilkPayment } from '../economy.js';
 import { DEFAULT_BREEDS, AI_BULLS_CATALOG } from '../constants.js';
-import { Cow, Breed } from '../types.js';
+import {
+  Cow,
+  Breed,
+  calculateECM,
+  calculateFPR,
+  formatCurrencyValue,
+  formatWeightValue,
+  formatVolumeValue,
+} from '../types.js';
 
 test('Wood Lactation Curve: calculates realistic trajectory and peak', () => {
   const params = computeWoodParams(40, 2, 0.7);
@@ -222,4 +230,44 @@ test('Tosun Paşa: İKAS Milk and Meat Withdrawal Lock Enforcement', () => {
   updateCowHealth(sickCow, dummyBreed, 90, 0, 24, false);
   assert.equal(sickCow.ikasMilkLockHours, 48);
   assert.equal(sickCow.ikasMeatLockDays, 27);
+});
+
+test('International Realistic Gaming Standards: ICAR ECM, FPR & Conversions', () => {
+  // 1. ICAR & NRC Energy-Corrected Milk (ECM)
+  // 30 L milk, 4.0% fat, 3.4% protein -> ECM should be around 32.7 L
+  const ecm = calculateECM(30, 4.0, 3.4);
+  assert.ok(ecm > 30, `ECM (${ecm}) should be higher than raw milk due to high fat/protein`);
+  assert.equal(Math.round(ecm), 33);
+
+  // 2. Fat-to-Protein Ratio (FPR) Biomarker
+  // High fat / low protein -> Subclinical ketosis risk
+  const ketosisTest = calculateFPR(5.0, 3.0);
+  assert.equal(ketosisTest.status, 'ketosis_risk');
+  assert.ok(ketosisTest.ratio > 1.40);
+
+  // Low fat / high protein (milk fat depression) -> SARA / acidosis risk
+  const acidosisTest = calculateFPR(2.8, 3.3);
+  assert.equal(acidosisTest.status, 'acidosis_risk');
+  assert.ok(acidosisTest.ratio < 1.00);
+
+  // Balanced
+  const balancedTest = calculateFPR(3.8, 3.2);
+  assert.equal(balancedTest.status, 'normal');
+
+  // 3. Currency & Unit formatters
+  const eurStr = formatCurrencyValue(1000, 'EUR');
+  assert.ok(eurStr.includes('€'));
+
+  const tryStr = formatCurrencyValue(1000, 'TRY');
+  assert.ok(tryStr.includes('₺'));
+
+  const usdStr = formatCurrencyValue(1000, 'USD');
+  assert.ok(usdStr.includes('$'));
+
+  const kgStr = formatWeightValue(650, 'metric');
+  assert.equal(kgStr, '650 kg');
+
+  const lbsStr = formatWeightValue(650, 'imperial');
+  assert.ok(lbsStr.includes('lbs'));
+  assert.equal(lbsStr, '1,433 lbs');
 });

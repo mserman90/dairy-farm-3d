@@ -6,9 +6,15 @@ class SyntheticAudioEngine {
   private isMuted: boolean = false;
   private masterGain: GainNode | null = null;
   private ambientGain: GainNode | null = null;
+  private sfxGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
   private isAmbianceRunning: boolean = false;
   private musicInterval: number | null = null;
   private isMusicPlaying: boolean = false;
+
+  private masterVol: number = 0.6;
+  private sfxVol: number = 0.8;
+  private musicVol: number = 0.4;
 
   private initContext(): AudioContext {
     if (!this.ctx) {
@@ -16,8 +22,16 @@ class SyntheticAudioEngine {
       this.ctx = new AudioCtx();
 
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.masterVol, this.ctx.currentTime);
       this.masterGain.connect(this.ctx.destination);
+
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.setValueAtTime(this.sfxVol, this.ctx.currentTime);
+      this.sfxGain.connect(this.masterGain);
+
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.setValueAtTime(this.musicVol, this.ctx.currentTime);
+      this.musicGain.connect(this.masterGain);
 
       this.ambientGain = this.ctx.createGain();
       this.ambientGain.gain.setValueAtTime(0.2, this.ctx.currentTime);
@@ -36,9 +50,34 @@ class SyntheticAudioEngine {
   public setMute(muted: boolean): void {
     this.isMuted = muted;
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(muted ? 0 : 0.5, this.ctx.currentTime, 0.05);
+      this.masterGain.gain.setTargetAtTime(muted ? 0 : this.masterVol, this.ctx.currentTime, 0.05);
     }
   }
+
+  public setMasterVolume(vol: number): void {
+    this.masterVol = Math.max(0, Math.min(1, vol));
+    if (this.masterGain && this.ctx && !this.isMuted) {
+      this.masterGain.gain.setTargetAtTime(this.masterVol, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  public setSfxVolume(vol: number): void {
+    this.sfxVol = Math.max(0, Math.min(1, vol));
+    if (this.sfxGain && this.ctx) {
+      this.sfxGain.gain.setTargetAtTime(this.sfxVol, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  public setMusicVolume(vol: number): void {
+    this.musicVol = Math.max(0, Math.min(1, vol));
+    if (this.musicGain && this.ctx) {
+      this.musicGain.gain.setTargetAtTime(this.musicVol, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  public getMasterVolume(): number { return this.masterVol; }
+  public getSfxVolume(): number { return this.sfxVol; }
+  public getMusicVolume(): number { return this.musicVol; }
 
   public isAudioMuted(): boolean {
     return this.isMuted;
@@ -212,7 +251,8 @@ class SyntheticAudioEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
 
     osc.connect(gain);
-    if (this.masterGain) gain.connect(this.masterGain);
+    const dest = this.sfxGain || this.masterGain;
+    if (dest) gain.connect(dest);
 
     osc.start(now);
     osc.stop(now + 0.3);
@@ -236,7 +276,8 @@ class SyntheticAudioEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
 
     osc.connect(gain);
-    if (this.masterGain) gain.connect(this.masterGain);
+    const dest = this.sfxGain || this.masterGain;
+    if (dest) gain.connect(dest);
 
     osc.start(now);
     osc.stop(now + 0.05);
@@ -279,7 +320,8 @@ class SyntheticAudioEngine {
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
 
       osc.connect(gain);
-      if (this.masterGain) gain.connect(this.masterGain);
+      const dest = this.musicGain || this.masterGain;
+      if (dest) gain.connect(dest);
 
       osc.start(now);
       osc.stop(now + 1.3);

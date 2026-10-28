@@ -17,6 +17,12 @@ import { getTranslation } from '../../locales/i18n';
 import { AI_BULLS_CATALOG, DEFAULT_BREEDS } from '../../lib/sim/constants';
 import { computeWoodParams, generateLactationCurvePoints } from '../../lib/sim/woodCurve';
 import { evaluateColostrumBrix } from '../../lib/sim/health';
+import {
+  calculateECM,
+  calculateFPR,
+  formatWeightValue,
+  formatVolumeValue,
+} from '../../lib/sim/types';
 
 export const CowDetailModal: React.FC = () => {
   const {
@@ -32,6 +38,7 @@ export const CowDetailModal: React.FC = () => {
     genomicTestAction,
     toggleMilkIsolationAction,
     updateBovineMeasurements,
+    unitSystem,
   } = useFarmStore();
 
   const [selectedBullId, setSelectedBullId] = useState(AI_BULLS_CATALOG[0].id);
@@ -75,6 +82,8 @@ export const CowDetailModal: React.FC = () => {
   const currentDimY = getSvgY(cow.milkYieldTodayL);
 
   const brixEval = evaluateColostrumBrix(cow.colostrumBrixPct || 22);
+  const ecmYield = calculateECM(cow.milkYieldTodayL, cow.fatPct, cow.proteinPct);
+  const fpr = calculateFPR(cow.fatPct, cow.proteinPct);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
@@ -218,6 +227,39 @@ export const CowDetailModal: React.FC = () => {
             <div className="text-[10px] text-slate-400">
               Laktasyon: {cow.lactationNumber}. (Gün {cow.lactationDay})
             </div>
+          </div>
+        </div>
+
+        {/* Uluslararası Zootekni & Metabolik İndeksler (ICAR ECM & FPR) */}
+        <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div>
+            <span className="text-[10px] text-slate-400 block font-semibold uppercase">ICAR ECM (Düzeltilmiş)</span>
+            <span className="text-sm font-bold font-mono text-cyan-300">
+              {formatVolumeValue(ecmYield, unitSystem)}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block font-semibold uppercase">Süt Yağ / Protein</span>
+            <span className="text-sm font-bold font-mono text-amber-300">
+              %{cow.fatPct} / %{cow.proteinPct}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block font-semibold uppercase">FPR (Yağ/Protein Oranı)</span>
+            <span className="text-sm font-bold font-mono text-slate-100 flex items-center gap-1.5">
+              <span>{fpr.ratio}</span>
+              <span
+                className="w-2.5 h-2.5 rounded-full shadow"
+                style={{ backgroundColor: fpr.color }}
+                title={language === 'tr' ? fpr.labelTr : fpr.labelEn}
+              />
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block font-semibold uppercase">Canlı Ağırlık</span>
+            <span className="text-sm font-bold font-mono text-emerald-300">
+              {formatWeightValue(cow.weightKg, unitSystem)}
+            </span>
           </div>
         </div>
 

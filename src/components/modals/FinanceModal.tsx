@@ -14,10 +14,18 @@ import { useFarmStore } from '../../store/useFarmStore';
 import { getTranslation } from '../../locales/i18n';
 import { computeKpis } from '../../lib/sim/economy';
 import { analyzeRation } from '../../lib/sim/nutrition';
+import { formatCurrencyValue } from '../../lib/sim/types';
 
 export const FinanceModal: React.FC = () => {
-  const { farm, language, activeModal, setActiveModal, borrowLoanAction, repayLoanAction } =
-    useFarmStore();
+  const {
+    farm,
+    language,
+    activeModal,
+    setActiveModal,
+    borrowLoanAction,
+    repayLoanAction,
+    currency,
+  } = useFarmStore();
 
   if (activeModal !== 'finance') return null;
   const t = getTranslation(language);
@@ -62,9 +70,9 @@ export const FinanceModal: React.FC = () => {
               {t.finance.costPerLiter}
             </span>
             <div className="text-xl font-bold font-mono text-cyan-300 mt-1">
-              €{kpis.costPerLiter.toFixed(3)}
+              {formatCurrencyValue(kpis.costPerLiter, currency)}/L
             </div>
-            <span className="text-[10px] text-slate-500">Hedef: &lt; €0.38/L</span>
+            <span className="text-[10px] text-slate-500">Hedef: &lt; {formatCurrencyValue(0.38, currency)}/L</span>
           </div>
 
           <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
@@ -72,7 +80,7 @@ export const FinanceModal: React.FC = () => {
               {t.finance.annualIncomePerCow}
             </span>
             <div className="text-xl font-bold font-mono text-emerald-300 mt-1">
-              €{kpis.annualIncomePerCow.toLocaleString()}
+              {formatCurrencyValue(kpis.annualIncomePerCow, currency)}
             </div>
             <span className="text-[10px] text-slate-500">Tahmini Brüt / Yıl</span>
           </div>
@@ -109,7 +117,7 @@ export const FinanceModal: React.FC = () => {
                 {t.finance.totalDebt}
               </div>
               <div className="text-xl font-bold font-mono text-purple-300">
-                €{farm.debt.toLocaleString()}
+                {formatCurrencyValue(farm.debt, currency)}
               </div>
               <span className="text-[10px] text-slate-400">
                 Yıllık Faiz: %{(farm.loanInterestRate * 100).toFixed(1)}

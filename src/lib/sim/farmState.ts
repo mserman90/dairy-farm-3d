@@ -323,8 +323,8 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
   const initialWeather = generateDailyWeather(1, 'spring');
 
   return {
-    version: '1.1.0',
-    farmName: 'Tosun Paşa Süt Çiftliği',
+    version: '1.2.0',
+    farmName: 'Tosunpaşa Çiftliği',
     day: 1,
     hour: 7.0,
     season: 'spring',

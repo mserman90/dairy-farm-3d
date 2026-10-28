@@ -1,6 +1,6 @@
 export const en = {
-  appName: '3D Dairy Cattle Farm',
-  appSubtitle: 'Realistic Dairy Management & Breeding Simulator',
+  appName: 'Tosunpaşa Farm 3D',
+  appSubtitle: 'International Realistic Dairy Cattle & Herd Management Simulator',
 
   dock: {
     dashboard: 'Overview',

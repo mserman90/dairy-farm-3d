@@ -12,11 +12,23 @@ import {
 import { useFarmStore } from '../../store/useFarmStore';
 import { getTranslation } from '../../locales/i18n';
 import { calculateMilkPayment } from '../../lib/sim/economy';
-import { MilkingSystemType } from '../../lib/sim/types';
+import {
+  MilkingSystemType,
+  calculateECM,
+  formatVolumeValue,
+  formatCurrencyValue,
+} from '../../lib/sim/types';
 
 export const MilkingModal: React.FC = () => {
-  const { farm, language, activeModal, setActiveModal, upgradeMilkingAction } =
-    useFarmStore();
+  const {
+    farm,
+    language,
+    activeModal,
+    setActiveModal,
+    upgradeMilkingAction,
+    unitSystem,
+    currency,
+  } = useFarmStore();
 
   if (activeModal !== 'milking') return null;
   const t = getTranslation(language);
@@ -28,6 +40,7 @@ export const MilkingModal: React.FC = () => {
   const avgFat = lactating.reduce((sum, c) => sum + c.fatPct, 0) / count;
   const avgProt = lactating.reduce((sum, c) => sum + c.proteinPct, 0) / count;
   const avgScc = lactating.reduce((sum, c) => sum + c.scc, 0) / count;
+  const totalEcm = calculateECM(totalYield, avgFat, avgProt);
 
   const payment = calculateMilkPayment(
     totalYield,
@@ -113,10 +126,10 @@ export const MilkingModal: React.FC = () => {
               {t.milking.dailyBulkTank}
             </span>
             <div className="text-xl font-bold font-mono text-cyan-300 mt-1">
-              {Math.round(totalYield * 10) / 10} L
+              {formatVolumeValue(totalYield, unitSystem)}
             </div>
-            <span className="text-[10px] text-slate-500">
-              {lactating.length} sağılan inek
+            <span className="text-[10px] text-slate-400">
+              ICAR ECM: {formatVolumeValue(totalEcm, unitSystem)}
             </span>
           </div>
 
@@ -148,7 +161,7 @@ export const MilkingModal: React.FC = () => {
               {(avgScc / 1000).toFixed(0)}k
             </div>
             <span className="text-[10px] text-slate-400">
-              {avgScc > 400000 ? '-%10 Ceza Kesintisi' : 'A Kalite Standart'}
+              {avgScc > 400000 ? '⚠️ AB Sınırı Aşımı (-%10 Ceza)' : 'AB Direktifi 92/46 Grade A'}
             </span>
           </div>
 
@@ -157,10 +170,10 @@ export const MilkingModal: React.FC = () => {
               {t.milking.effectivePrice}
             </span>
             <div className="text-xl font-bold font-mono text-emerald-300 mt-1">
-              €{payment.unitPricePerL.toFixed(3)} /L
+              {formatCurrencyValue(payment.unitPricePerL, currency)} /L
             </div>
             <span className="text-[10px] text-slate-400">
-              Günlük Gelir: €{payment.grossPayment.toFixed(0)}
+              {language === 'tr' ? 'Günlük Gelir:' : 'Daily Revenue:'} {formatCurrencyValue(payment.grossPayment, currency)}
             </span>
           </div>
         </div>

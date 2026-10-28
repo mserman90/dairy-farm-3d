@@ -14,6 +14,9 @@ import {
   MilkingSystemType,
   NotificationItem,
   RationItem,
+  UnitSystem,
+  CurrencyCode,
+  GraphicsQuality,
 } from '../lib/sim/types';
 import { synthAudio } from '../lib/audio/synthAudio';
 
@@ -39,6 +42,14 @@ interface FarmStore {
   cameraPreset: number;
   notifications: NotificationItem[];
 
+  // Uluslararası Oyun Standartları Ayarları
+  unitSystem: UnitSystem;
+  currency: CurrencyCode;
+  graphicsQuality: GraphicsQuality;
+  masterVolume: number;
+  sfxVolume: number;
+  musicVolume: number;
+
   // Actions
   tick: (deltaSeconds: number) => void;
   setGameSpeed: (speed: number) => void;
@@ -49,6 +60,13 @@ interface FarmStore {
   setZenMode: (zen: boolean) => void;
   toggleZenMode: () => void;
   setCameraPreset: (preset: number) => void;
+
+  setUnitSystem: (unit: UnitSystem) => void;
+  setCurrency: (curr: CurrencyCode) => void;
+  setGraphicsQuality: (quality: GraphicsQuality) => void;
+  setMasterVolume: (vol: number) => void;
+  setSfxVolume: (vol: number) => void;
+  setMusicVolume: (vol: number) => void;
 
   // Farm Operations
   updateRation: (items: RationItem[]) => void;
@@ -89,14 +107,16 @@ interface FarmStore {
   dismissNotification: (id: string) => void;
 }
 
-const STORAGE_KEY = 'dairy_farm_3d_save_v2';
+const STORAGE_KEY = 'tosun_pasa_ciftligi_3d_save_v1';
+const LEGACY_KEY = 'dairy_farm_3d_save_v2';
 
 function loadPersistedState(): FarmState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.version && parsed.cows) {
+        parsed.farmName = 'Tosunpaşa Çiftliği';
         return parsed;
       }
     }
@@ -113,16 +133,25 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
   selectedCowId: null,
   zenMode: false,
   cameraPreset: 1,
+
+  // Uluslararası Standartlar
+  unitSystem: 'metric',
+  currency: 'TRY',
+  graphicsQuality: 'high',
+  masterVolume: 0.6,
+  sfxVolume: 0.8,
+  musicVolume: 0.4,
+
   notifications: [
     {
       id: 'welcome',
       day: 1,
       hour: 7,
       type: 'info',
-      titleTr: 'Tosun Paşa Süt Çiftliği Açıldı!',
-      titleEn: 'Tosun Pasa Dairy Farm Open!',
-      messageTr: 'Büyükbaş İnek Çarkı (283 Gün), İKAS Süt Arınma Kilidi ve Brix Kolostrum Skalası aktif.',
-      messageEn: '283-Day Bovine Reproduction Wheel, Withdrawal Lock & Brix Colostrum Refractometer active.',
+      titleTr: 'Tosunpaşa Çiftliği 3D Simülasyonu Hazır!',
+      titleEn: 'Tosunpasa Farm 3D Simulator Ready!',
+      messageTr: 'Büyükbaş İnek Çarkı (283 Gün), İKAS Süt Arınma Kilidi, Brix Kolostrum Skalası ve Uluslararası Zootekni Standartları aktif.',
+      messageEn: '283-Day Bovine Reproduction Wheel, Withdrawal Lock, Brix Colostrum & International Dairy Standards active.',
       timestamp: Date.now(),
     },
   ],
@@ -182,6 +211,36 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
   setCameraPreset: (preset: number) => {
     synthAudio.playClick();
     set({ cameraPreset: preset });
+  },
+
+  setUnitSystem: (unit: UnitSystem) => {
+    synthAudio.playClick();
+    set({ unitSystem: unit });
+  },
+
+  setCurrency: (curr: CurrencyCode) => {
+    synthAudio.playClick();
+    set({ currency: curr });
+  },
+
+  setGraphicsQuality: (quality: GraphicsQuality) => {
+    synthAudio.playClick();
+    set({ graphicsQuality: quality });
+  },
+
+  setMasterVolume: (vol: number) => {
+    synthAudio.setMasterVolume(vol);
+    set({ masterVolume: vol });
+  },
+
+  setSfxVolume: (vol: number) => {
+    synthAudio.setSfxVolume(vol);
+    set({ sfxVolume: vol });
+  },
+
+  setMusicVolume: (vol: number) => {
+    synthAudio.setMusicVolume(vol);
+    set({ musicVolume: vol });
   },
 
   updateRation: (items: RationItem[]) => {

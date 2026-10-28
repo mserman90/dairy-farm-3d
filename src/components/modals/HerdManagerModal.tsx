@@ -12,7 +12,7 @@ import {
 import { useFarmStore } from '../../store/useFarmStore';
 import { getTranslation } from '../../locales/i18n';
 import { DEFAULT_BREEDS } from '../../lib/sim/constants';
-import { CowState } from '../../lib/sim/types';
+import { CowState, calculateECM, calculateFPR, formatVolumeValue } from '../../lib/sim/types';
 
 export const HerdManagerModal: React.FC = () => {
   const {
@@ -22,6 +22,7 @@ export const HerdManagerModal: React.FC = () => {
     setActiveModal,
     setSelectedCowId,
     buyHeiferAction,
+    unitSystem,
   } = useFarmStore();
 
   const [search, setSearch] = useState('');
@@ -32,12 +33,28 @@ export const HerdManagerModal: React.FC = () => {
   const allBreeds = [...DEFAULT_BREEDS, ...farm.customBreeds];
 
   // Herd counts
-  const lactating = farm.cows.filter((c) => c.state === 'lactating').length;
+  const lactatingCows = farm.cows.filter((c) => c.state === 'lactating');
+  const lactating = lactatingCows.length;
   const dry = farm.cows.filter((c) => c.state === 'dry').length;
   const heifers = farm.cows.filter(
     (c) => c.state === 'heifer' || c.state === 'pregnant_heifer'
   ).length;
   const calves = farm.cows.filter((c) => c.state === 'calf' || c.state === 'weaned').length;
+
+  // International Benchmarks
+  const totalEcm = lactatingCows.reduce(
+    (sum, c) => sum + calculateECM(c.milkYieldTodayL, c.fatPct, c.proteinPct),
+    0
+  );
+  const avgFat =
+    lactatingCows.length > 0
+      ? lactatingCows.reduce((s, c) => s + c.fatPct, 0) / lactatingCows.length
+      : 3.8;
+  const avgProtein =
+    lactatingCows.length > 0
+      ? lactatingCows.reduce((s, c) => s + c.proteinPct, 0) / lactatingCows.length
+      : 3.2;
+  const herdFpr = calculateFPR(avgFat, avgProtein);
 
   // Filtered cows
   const filtered = farm.cows.filter((cow) => {
@@ -154,6 +171,38 @@ export const HerdManagerModal: React.FC = () => {
               {calves}
             </div>
           </button>
+        </div>
+
+        {/* Uluslararası Sürü Standartları Telemetrisi */}
+        <div className="bg-slate-950/80 px-5 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 font-semibold">ICAR Sürü ECM:</span>
+              <span className="font-mono font-bold text-cyan-300">
+                {formatVolumeValue(totalEcm, unitSystem)}
+              </span>
+            </div>
+            <span className="text-slate-700">|</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 font-semibold">Ort. Yağ/Protein:</span>
+              <span className="font-mono font-bold text-amber-300">
+                %{avgFat.toFixed(2)} / %{avgProtein.toFixed(2)}
+              </span>
+            </div>
+            <span className="text-slate-700">|</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 font-semibold">Sürü FPR:</span>
+              <span className="font-mono font-bold text-white">{herdFpr.ratio}</span>
+              <span
+                className="w-2.5 h-2.5 rounded-full inline-block"
+                style={{ backgroundColor: herdFpr.color }}
+                title={language === 'tr' ? herdFpr.labelTr : herdFpr.labelEn}
+              />
+            </div>
+          </div>
+          <div className="text-[11px] text-slate-400 font-medium hidden sm:block">
+            ICAR / IDF Energy Corrected Milk & NRC
+          </div>
         </div>
 
         {/* Search Bar */}

@@ -2,6 +2,9 @@
 // Tosun Paşa Çiftliği Bütünleşik Sistem Uyarlaması
 
 export type Language = 'tr' | 'en';
+export type UnitSystem = 'metric' | 'imperial';
+export type CurrencyCode = 'EUR' | 'USD' | 'TRY';
+export type GraphicsQuality = 'low' | 'medium' | 'high' | 'ultra';
 
 export type CowState =
   | 'calf'             // Buzağı (0-2 ay)
@@ -323,4 +326,124 @@ export interface NotificationItem {
   messageTr: string;
   messageEn: string;
   timestamp: number;
+}
+
+// ==========================================
+// Uluslararası Standart Zootekni & Oyun Fonksiyonları
+// (International Livestock & Gaming Standards)
+// ==========================================
+
+/**
+ * Energy Corrected Milk (ECM / Enerjiye Göre Düzeltilmiş Süt) - ICAR & NRC Standardı
+ * Süt hacmini standart %3.5 yağ ve %3.2 protein eşdeğerine normalize eder.
+ */
+export function calculateECM(milkLiters: number, fatPct: number, proteinPct: number): number {
+  if (milkLiters <= 0) return 0;
+  // NRC 2001 & ICAR formülü: ECM = Milk * (0.327 + 0.1295 * Fat% + 0.072 * Protein%)
+  const ecm = milkLiters * (0.327 + 0.1295 * fatPct + 0.072 * proteinPct);
+  return Math.round(ecm * 10) / 10;
+}
+
+/**
+ * Fat-to-Protein Ratio (FPR / Süt Yağ-Protein Oranı) - Metabolik Sağlık İndeksi
+ * Subklinik Ketozis (>1.40) ve SARA / Rumen Asidozu (<1.00) erken teşhis belirteci.
+ */
+export function calculateFPR(fatPct: number, proteinPct: number): {
+  ratio: number;
+  status: 'normal' | 'ketosis_risk' | 'acidosis_risk';
+  labelTr: string;
+  labelEn: string;
+  color: string;
+} {
+  const ratio = Math.round((fatPct / Math.max(0.5, proteinPct)) * 100) / 100;
+  if (ratio > 1.40) {
+    return {
+      ratio,
+      status: 'ketosis_risk',
+      labelTr: 'Ketozis Riski (NEB / FPR > 1.40)',
+      labelEn: 'Ketosis Alert (NEB / FPR > 1.40)',
+      color: '#f59e0b',
+    };
+  } else if (ratio < 1.00) {
+    return {
+      ratio,
+      status: 'acidosis_risk',
+      labelTr: 'Asidoz / SARA Riski (FPR < 1.00)',
+      labelEn: 'Acidosis / SARA Alert (FPR < 1.00)',
+      color: '#ef4444',
+    };
+  } else {
+    return {
+      ratio,
+      status: 'normal',
+      labelTr: 'Optimal Rumen Dengesi (1.1 - 1.3)',
+      labelEn: 'Optimal Rumen Balance (1.1 - 1.3)',
+      color: '#10b981',
+    };
+  }
+}
+
+/**
+ * Uluslararası Para Birimi Formatlayıcı
+ */
+export function formatCurrencyValue(amountEur: number, currency: CurrencyCode): string {
+  switch (currency) {
+    case 'USD': {
+      const usd = Math.round(amountEur * 1.08);
+      return `$${usd.toLocaleString('en-US')}`;
+    }
+    case 'TRY': {
+      const tryVal = Math.round(amountEur * 38.5);
+      return `₺${tryVal.toLocaleString('tr-TR')}`;
+    }
+    case 'EUR':
+    default: {
+      const eur = Math.round(amountEur);
+      return `€${eur.toLocaleString('de-DE')}`;
+    }
+  }
+}
+
+/**
+ * Uluslararası Ağırlık Formatlayıcı (kg <-> lbs)
+ */
+export function formatWeightValue(kg: number, unit: UnitSystem): string {
+  if (unit === 'imperial') {
+    const lbs = Math.round(kg * 2.20462);
+    return `${lbs.toLocaleString('en-US')} lbs`;
+  }
+  return `${Math.round(kg).toLocaleString()} kg`;
+}
+
+/**
+ * Uluslararası Hacim Formatlayıcı (Litre <-> US Gal)
+ */
+export function formatVolumeValue(liters: number, unit: UnitSystem): string {
+  if (unit === 'imperial') {
+    const gal = Math.round(liters * 0.264172 * 10) / 10;
+    return `${gal.toLocaleString('en-US')} gal`;
+  }
+  return `${(Math.round(liters * 10) / 10).toLocaleString()} L`;
+}
+
+/**
+ * Uluslararası Sıcaklık Formatlayıcı (°C <-> °F)
+ */
+export function formatTempValue(celsius: number, unit: UnitSystem): string {
+  if (unit === 'imperial') {
+    const fahrenheit = Math.round(celsius * 1.8 + 32);
+    return `${fahrenheit}°F`;
+  }
+  return `${celsius}°C`;
+}
+
+/**
+ * Uluslararası Boyut Formatlayıcı (cm <-> in)
+ */
+export function formatDimensionValue(cm: number, unit: UnitSystem): string {
+  if (unit === 'imperial') {
+    const inches = Math.round((cm / 2.54) * 10) / 10;
+    return `${inches} in`;
+  }
+  return `${cm} cm`;
 }

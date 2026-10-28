@@ -1,6 +1,6 @@
 export const tr = {
-  appName: 'Süt Sığırı Çiftliği 3D',
-  appSubtitle: 'Gerçekçi Süt Sığırcılığı İşletme Simülasyonu',
+  appName: 'Tosunpaşa Çiftliği',
+  appSubtitle: 'Uluslararası Gerçekçi Süt Sığırcılığı & Sürü Yönetim Simülatörü',
   
   // Navigation Dock
   dock: {
