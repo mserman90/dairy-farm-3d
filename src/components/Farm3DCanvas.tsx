@@ -59,6 +59,7 @@ export const Farm3DCanvas: React.FC = () => {
   const cowMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const fanBladesRef = useRef<THREE.Group[]>([]);
   const tankerTruckRef = useRef<THREE.Group | null>(null);
+  const tractorTruckRef = useRef<THREE.Group | null>(null);
   const scraperMeshRef = useRef<THREE.Mesh | null>(null);
   const milkTaxiRef = useRef<THREE.Group | null>(null);
   const workerAvatarRef = useRef<THREE.Group | null>(null);
@@ -133,7 +134,7 @@ export const Farm3DCanvas: React.FC = () => {
     };
 
     // Build Static Farm Environment
-    buildFarmEnvironment(scene, fanBladesRef, tankerTruckRef);
+    buildFarmEnvironment(scene, fanBladesRef, tankerTruckRef, tractorTruckRef);
 
     // Build Biosecurity Structures & Movement Overlays
     buildBiosecurityStructures(scene, scraperMeshRef, milkTaxiRef);
@@ -392,6 +393,76 @@ export const Farm3DCanvas: React.FC = () => {
             }
           }
         });
+      }
+
+      // Animate Tractor & TMR Mixer Wagon along Central Feed Alley
+      if (tractorTruckRef.current) {
+        const isRunning = farm.logistics?.equipment.tmrMixerRunning ?? true;
+
+        if (isRunning) {
+          // Gerçekçi 5.0m yem yolu devri:
+          // 1. Silaj ambarı / yem mutfağı çıkışı (x: 14, z: 10)
+          // 2. Doğu ahır kapısından giriş (x: 9, z: 0.5)
+          // 3. Merkezi yem yolunda batıya doğru ilerleme & TMR dökümü (x: -26, z: 0.5)
+          // 4. Batı ucunda 5 metrelik yolda yumuşak U dönüşü (x: -27, z: 0) -> (x: -26, z: -0.5)
+          // 5. Kuzey yemlik önünden doğuya dönüş seyri (x: 9, z: -0.5)
+          // 6. Doğu kapısından çıkıp yem merkezine dönüş (x: 14, z: 6)
+          const waypoints = [
+            new THREE.Vector3(14, 0.1, 10),
+            new THREE.Vector3(9, 0.1, 0.5),
+            new THREE.Vector3(-26, 0.1, 0.5),
+            new THREE.Vector3(-27, 0.1, 0.0),
+            new THREE.Vector3(-26, 0.1, -0.5),
+            new THREE.Vector3(9, 0.1, -0.5),
+            new THREE.Vector3(14, 0.1, 6),
+          ];
+
+          const loopDuration = 45; // 45 saniyelik yem dağıtım seferi
+          const t = (time % loopDuration) / loopDuration;
+          const totalSegments = waypoints.length;
+          const segFloat = t * totalSegments;
+          const segIdx = Math.floor(segFloat);
+          const segT = segFloat - segIdx;
+          const p1 = waypoints[segIdx];
+          const p2 = waypoints[(segIdx + 1) % totalSegments];
+
+          tractorTruckRef.current.position.lerpVectors(p1, p2, segT);
+
+          // Sürüş yönüne doğru yönelme (Heading)
+          const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+          if (dir.lengthSq() > 0.001) {
+            const targetYaw = Math.atan2(dir.x, dir.z);
+            const curYaw = tractorTruckRef.current.rotation.y;
+            let diff = targetYaw - curYaw;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            tractorTruckRef.current.rotation.y += diff * 0.12;
+          }
+
+          // Dikey helezon karıştırıcının dönüşü
+          const auger = tractorTruckRef.current.getObjectByName('mixer_auger');
+          if (auger) {
+            auger.rotation.y += 14 * delta;
+          }
+
+          // Traktör ve mikser tekerleklerinin dönmesi
+          tractorTruckRef.current.traverse((child) => {
+            if (child.name.includes('wheel')) {
+              child.rotation.x += 16 * delta;
+            }
+          });
+
+          // Motor rölanti mikro-titreşimi
+          const hood = tractorTruckRef.current.getObjectByName('tractor_hood');
+          if (hood) {
+            hood.position.y = 1.2 + Math.sin(time * 35) * 0.008;
+          }
+        } else {
+          // Park Halinde (Yem ambarı önü)
+          const parkPos = new THREE.Vector3(6, 0.1, 14);
+          tractorTruckRef.current.position.lerp(parkPos, 0.05);
+          tractorTruckRef.current.rotation.y = -0.6;
+        }
       }
 
       // Animate Worker Avatar along clean-to-dirty biosecurity circuit
@@ -835,7 +906,8 @@ function createProceduralCowMesh(cow: Cow, breed: typeof DEFAULT_BREEDS[0]): THR
 function buildFarmEnvironment(
   scene: THREE.Scene,
   fanBladesRef: React.MutableRefObject<THREE.Group[]>,
-  tankerTruckRef: React.MutableRefObject<THREE.Group | null>
+  tankerTruckRef: React.MutableRefObject<THREE.Group | null>,
+  tractorTruckRef?: React.MutableRefObject<THREE.Group | null>
 ): void {
   // 1. Terrain Ground
   const terrainGeo = new THREE.PlaneGeometry(240, 240, 32, 32);
@@ -1187,7 +1259,7 @@ function buildFarmEnvironment(
   });
 
   // 6. Tractor & TMR Wagon
-  buildTractorAndMixer(scene);
+  buildTractorAndMixer(scene, tractorTruckRef);
 
   // 7. Perimeter Pasture Wooden Fences
   const fenceMat = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.85 });
@@ -1207,9 +1279,13 @@ function buildFarmEnvironment(
   }
 }
 
-function buildTractorAndMixer(scene: THREE.Scene): void {
+function buildTractorAndMixer(
+  scene: THREE.Scene,
+  tractorRef?: React.MutableRefObject<THREE.Group | null>
+): void {
   const tractorGroup = new THREE.Group();
-  tractorGroup.position.set(6, 0, 14);
+  tractorGroup.name = 'tractor_tmr_group';
+  tractorGroup.position.set(6, 0.1, 14);
   tractorGroup.rotation.y = -0.6;
 
   const redMat = new THREE.MeshStandardMaterial({ color: '#dc2626', roughness: 0.4 });
@@ -1218,14 +1294,31 @@ function buildTractorAndMixer(scene: THREE.Scene): void {
 
   // Chassis & Engine Hood
   const hood = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 2.2), redMat);
+  hood.name = 'tractor_hood';
   hood.position.set(0, 1.2, 0.6);
   hood.castShadow = true;
   tractorGroup.add(hood);
 
   // Cabin
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.6, 1.4), glassMat);
+  cabin.name = 'tractor_cabin';
   cabin.position.set(0, 2.2, -0.9);
   tractorGroup.add(cabin);
+
+  // Exhaust Stack
+  const exhaustMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.3, metalness: 0.8 });
+  const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 8), exhaustMat);
+  exhaust.position.set(0.7, 2.2, 0.2);
+  exhaust.castShadow = true;
+  tractorGroup.add(exhaust);
+
+  // Headlights
+  const lightMat = new THREE.MeshStandardMaterial({ color: '#fef08a', emissive: '#fef08a', emissiveIntensity: 0.8 });
+  [-0.6, 0.6].forEach((lx) => {
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.1), lightMat);
+    lamp.position.set(lx, 1.3, 1.72);
+    tractorGroup.add(lamp);
+  });
 
   // Big Rear Wheels
   [-1.0, 1.0].forEach((wx) => {
@@ -1233,6 +1326,7 @@ function buildTractorAndMixer(scene: THREE.Scene): void {
     rearWheel.rotateZ(Math.PI / 2);
     rearWheel.position.set(wx, 0.85, -0.9);
     rearWheel.castShadow = true;
+    rearWheel.name = 'tractor_wheel_rear';
     tractorGroup.add(rearWheel);
   });
 
@@ -1242,27 +1336,51 @@ function buildTractorAndMixer(scene: THREE.Scene): void {
     frontWheel.rotateZ(Math.PI / 2);
     frontWheel.position.set(wx, 0.5, 1.2);
     frontWheel.castShadow = true;
+    frontWheel.name = 'tractor_wheel_front';
     tractorGroup.add(frontWheel);
   });
 
   // TMR Vertical Mixer Wagon attached behind
   const mixerGroup = new THREE.Group();
+  mixerGroup.name = 'tmr_mixer_wagon';
   mixerGroup.position.set(0, 0, -3.8);
 
   const wagonMat = new THREE.MeshStandardMaterial({ color: '#2563eb', roughness: 0.5 });
   const tubGeo = new THREE.CylinderGeometry(1.6, 1.2, 2.2, 16);
   const tub = new THREE.Mesh(tubGeo, wagonMat);
+  tub.name = 'mixer_tub';
   tub.position.y = 1.6;
   tub.castShadow = true;
   mixerGroup.add(tub);
 
-  // Mixer Auger inside tub
-  const auger = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.8, 8), new THREE.MeshStandardMaterial({ color: '#64748b' }));
+  // Mixer Trailer Wheels
+  [-1.25, 1.25].forEach((wx) => {
+    const wagonWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.38, 16), blackMat);
+    wagonWheel.rotateZ(Math.PI / 2);
+    wagonWheel.position.set(wx, 0.65, 0);
+    wagonWheel.castShadow = true;
+    wagonWheel.name = 'wagon_wheel';
+    mixerGroup.add(wagonWheel);
+  });
+
+  // Side Discharge Chute (Yem Boşaltma Konveyörü)
+  const chuteMat = new THREE.MeshStandardMaterial({ color: '#475569', roughness: 0.6 });
+  const chute = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.25, 0.6), chuteMat);
+  chute.position.set(1.4, 0.9, 0.4);
+  chute.rotation.z = -0.3;
+  mixerGroup.add(chute);
+
+  // Mixer Auger inside tub (Dönen dikey helezon karıştırıcı)
+  const auger = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.8, 8), new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.4 }));
+  auger.name = 'mixer_auger';
   auger.position.y = 1.6;
   mixerGroup.add(auger);
 
   tractorGroup.add(mixerGroup);
   scene.add(tractorGroup);
+  if (tractorRef) {
+    tractorRef.current = tractorGroup;
+  }
 }
 
 // -------------------------------------------------------------

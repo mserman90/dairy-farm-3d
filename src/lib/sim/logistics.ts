@@ -99,7 +99,7 @@ export function createInitialLogisticsState(): FarmLogisticsState {
       transferHistory: [],
     },
     equipment: {
-      tmrMixerRunning: false,
+      tmrMixerRunning: true,
       tmrMixerProgress: 0,
       manureScraperRunning: true,
       manureScraperPos: 0,
@@ -171,10 +171,9 @@ export function tickLogisticsSimulation(
 
   // 2. Yem Dağıtım Traktörü & TMR Mikser Vagon Hareketi
   if (next.equipment.tmrMixerRunning) {
-    let newProg = next.equipment.tmrMixerProgress + deltaSeconds * 4.0;
+    let newProg = next.equipment.tmrMixerProgress + (deltaSeconds / 45.0) * 100.0;
     if (newProg >= 100) {
-      newProg = 0;
-      next.equipment.tmrMixerRunning = false; // Yemleme turu tamamlandı
+      newProg = 0; // Bir sonraki yem dağıtım döngüsüne devam et
     }
     next.equipment.tmrMixerProgress = newProg;
   }
