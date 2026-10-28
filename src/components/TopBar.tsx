@@ -22,6 +22,7 @@ import {
   Maximize,
   Minimize,
   Settings as SettingsIcon,
+  RefreshCw,
 } from 'lucide-react';
 import { useFarmStore } from '../store/useFarmStore';
 import { getTranslation } from '../locales/i18n';
@@ -47,6 +48,7 @@ export const TopBar: React.FC = () => {
     unitSystem,
     setActiveModal,
     pushFeedAction,
+    syncWithTosunPasaAction,
   } = useFarmStore();
 
   const t = getTranslation(language);
@@ -393,6 +395,16 @@ export const TopBar: React.FC = () => {
           title={isFullscreen ? 'Tam Ekrandan Çık (Esc)' : 'Tam Ekran Modu (F11)'}
         >
           {isFullscreen ? <Minimize className="w-4 h-4 text-emerald-400" /> : <Maximize className="w-4 h-4" />}
+        </button>
+
+        {/* Tosun Paşa Zooteknist & Yetiştirici Verilerini Çek */}
+        <button
+          onClick={() => syncWithTosunPasaAction()}
+          className="flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 px-2 py-1.5 rounded-lg text-xs font-bold text-amber-300 transition shadow-sm"
+          title="Zooteknist & Yetiştirici Verilerini Çek (Küpeler, İKAS Tedavileri, Rasyon)"
+        >
+          <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+          <span className="hidden sm:inline">Tosun Paşa Verisini Çek</span>
         </button>
 
         {/* Settings Button */}

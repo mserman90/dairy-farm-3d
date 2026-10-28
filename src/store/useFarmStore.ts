@@ -5,6 +5,7 @@ import { treatCow } from '../lib/sim/health';
 import { generateOptimalRation } from '../lib/sim/nutrition';
 import { createInitialFarmState, tickFarmSimulation } from '../lib/sim/farmState';
 import { resolveFarmEvent } from '../lib/sim/farmEvents';
+import { syncWithTosunPasaMaster, TosunPasaSyncSummary } from '../lib/sim/tosunPasaBridge';
 import {
   Breed,
   Cow,
@@ -105,7 +106,8 @@ interface FarmStore {
   // Custom Breed
   addCustomBreedAction: (breed: Breed) => void;
 
-  // Persistence
+  // Persistence & Tosun Paşa Entegrasyonu
+  syncWithTosunPasaAction: (explicitDb?: any) => TosunPasaSyncSummary;
   resetFarmState: (difficulty?: 'easy' | 'normal' | 'hard') => void;
   exportSaveData: () => string;
   importSaveData: (json: string) => boolean;
@@ -116,6 +118,7 @@ const STORAGE_KEY = 'tosun_pasa_ciftligi_3d_save_v1';
 const LEGACY_KEY = 'dairy_farm_3d_save_v2';
 
 function loadPersistedState(): FarmState {
+  let base: FarmState = createInitialFarmState('normal');
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY);
     if (raw) {
@@ -157,13 +160,16 @@ function loadPersistedState(): FarmState {
           if (c.standingHeatHoursLeft === undefined) c.standingHeatHoursLeft = 0;
           if (c.activityIndex === undefined) c.activityIndex = 1.0;
         });
-        return parsed;
+        base = parsed;
       }
     }
   } catch (err) {
     console.warn('Could not load saved farm:', err);
   }
-  return createInitialFarmState('normal');
+
+  // Tosun Paşa Zooteknist & Yetiştirici Master Veritabanından otomatik veri çek
+  const { updatedFarm } = syncWithTosunPasaMaster(base);
+  return updatedFarm;
 }
 
 export const useFarmStore = create<FarmStore>((set, get) => ({
@@ -778,6 +784,34 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
     }));
   },
 
+  syncWithTosunPasaAction: (explicitDb?: any) => {
+    const current = get().farm;
+    const { updatedFarm, summary } = syncWithTosunPasaMaster(current, explicitDb);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedFarm));
+    } catch (e) {}
+
+    const newNotif: NotificationItem = {
+      id: `tp_sync_${Date.now()}`,
+      day: updatedFarm.day,
+      hour: Math.floor(updatedFarm.hour),
+      type: 'success',
+      titleTr: 'Tosun Paşa Verileri Aktarıldı!',
+      titleEn: 'Tosun Pasa Data Synced!',
+      messageTr: `Zooteknist & Yetiştirici verileri simülasyona aktarıldı: ${summary.cowsCount} küpeli hayvan, ${summary.ikasCount} İKAS kilitli tedavi, ${summary.rationItemsCount} aktif rasyon içeriği eşitlendi.`,
+      messageEn: `Master data synced: ${summary.cowsCount} cows, ${summary.ikasCount} withdrawal locks, ${summary.rationItemsCount} ration ingredients updated.`,
+      timestamp: Date.now(),
+    };
+
+    synthAudio.playCashChime();
+    set((s) => ({
+      farm: updatedFarm,
+      notifications: [newNotif, ...s.notifications].slice(0, 30),
+    }));
+
+    return summary;
+  },
+
   resetFarmState: (difficulty: 'easy' | 'normal' | 'hard' = 'normal') => {
     synthAudio.playClick();
     const newState = createInitialFarmState(difficulty);
@@ -813,4 +847,15 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
 
 if (typeof window !== 'undefined') {
   (window as unknown as { farmStore: typeof useFarmStore }).farmStore = useFarmStore;
+
+  // Tosun Paşa Çiftliği Ana Uygulamasından gelen canlı veri senkronizasyon mesajlarını dinle
+  window.addEventListener('message', (event) => {
+    try {
+      if (event.data && (event.data.type === 'TOSUN_PASA_SYNC' || event.data.type === 'SYNC_FARM_DATA')) {
+        useFarmStore.getState().syncWithTosunPasaAction(event.data.db);
+      }
+    } catch (e) {
+      console.warn('Canlı mesaj işleme hatası:', e);
+    }
+  });
 }
