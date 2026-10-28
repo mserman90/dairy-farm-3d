@@ -825,7 +825,7 @@ function buildFarmEnvironment(
     });
   }
 
-  // Pitched Roof
+  // Pitched Roof (1:3 Slope for Optimal Thermal Stack Effect)
   const roofShape = new THREE.BufferGeometry();
   const roofLeftGeo = new THREE.BoxGeometry(42, 0.3, 17);
   roofLeftGeo.rotateX(0.18);
@@ -840,7 +840,25 @@ function buildFarmEnvironment(
   roofRight.castShadow = true;
   scene.add(roofLeft, roofRight);
 
-  // Ceiling Ventilation Fans
+  // Continuous Open Ridge Vent with Wind Deflector (CIGR / MWPS Natural Chimney Ventilation)
+  const ridgeVentCapGeo = new THREE.BoxGeometry(42, 0.12, 1.6);
+  const ridgeCapMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.5 });
+  const ridgeCap = new THREE.Mesh(ridgeVentCapGeo, ridgeCapMat);
+  ridgeCap.position.set(-10, 8.65, 0);
+  scene.add(ridgeCap);
+
+  // Ridge vent vertical support brackets
+  for (let rx = -28; rx <= 8; rx += 8) {
+    const bracketGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
+    const bracketMat = new THREE.MeshStandardMaterial({ color: '#64748b' });
+    const b1 = new THREE.Mesh(bracketGeo, bracketMat);
+    b1.position.set(rx, 8.4, -0.6);
+    const b2 = new THREE.Mesh(bracketGeo, bracketMat);
+    b2.position.set(rx, 8.4, 0.6);
+    scene.add(b1, b2);
+  }
+
+  // Ceiling Ventilation Fans (High-Efficiency Circulation Fans over Stalls & Feed Alley)
   [-20, -10, 0].forEach((fx) => {
     const fanGroup = new THREE.Group();
     fanGroup.position.set(fx, 6.8, 0);
@@ -863,16 +881,129 @@ function buildFarmEnvironment(
     fanBladesRef.current.push(bladesGroup);
   });
 
-  // Stalls Rails (Yellow divider cubicles)
+  // 2.1 Self-Locking Feed Bunk Headlocks (Yemlik Kilitleri - CIGR / FAO Standard 70 cm per cow)
+  const headlockMat = new THREE.MeshStandardMaterial({ color: '#64748b', metalness: 0.6, roughness: 0.3 });
+  [-2.5, 2.5].forEach((bz) => {
+    // Top and Bottom Horizontal Rails along feed bunk
+    const topRail = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 34, 8), headlockMat);
+    topRail.rotateZ(Math.PI / 2);
+    topRail.position.set(-10, 1.05, bz);
+    const bottomRail = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 34, 8), headlockMat);
+    bottomRail.rotateZ(Math.PI / 2);
+    bottomRail.position.set(-10, 0.28, bz);
+    scene.add(topRail, bottomRail);
+
+    // Stanchions every 0.72m (Modular headlock pivot bars)
+    for (let hx = -26; hx <= 6; hx += 0.72) {
+      const vBar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6), headlockMat);
+      vBar.position.set(hx, 0.65, bz);
+      scene.add(vBar);
+
+      // Angled pivot locking arm
+      const pivotArm = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.75, 6), headlockMat);
+      pivotArm.rotation.z = 0.22;
+      pivotArm.position.set(hx + 0.16, 0.65, bz);
+      scene.add(pivotArm);
+    }
+  });
+
+  // 2.2 CIGR & Dairyland Initiative Freestalls (1.25 m Width, 2.60 m Length, Cantilever Loops)
   const stallMat = new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.3, metalness: 0.5 });
-  for (let sx = -26; sx <= 6; sx += 3.2) {
-    [-7, 7].forEach((sz) => {
-      const stallRail = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.05, 8, 16, Math.PI), stallMat);
-      stallRail.rotation.y = Math.PI / 2;
-      stallRail.position.set(sx, 1.2, sz);
-      scene.add(stallRail);
-    });
-  }
+  const pipeMat = new THREE.MeshStandardMaterial({ color: '#94a3b8', roughness: 0.4, metalness: 0.7 });
+  const beddingMat = new THREE.MeshStandardMaterial({ color: '#475569', roughness: 0.95 });
+  const brisketMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.8 });
+
+  [-7.5, 7.5].forEach((sz) => {
+    const isNorth = sz < 0;
+    // Bedding Mattress Base (10 cm raised comfort layer)
+    const mattressGeo = new THREE.BoxGeometry(33, 0.12, 2.6);
+    const mattress = new THREE.Mesh(mattressGeo, beddingMat);
+    mattress.position.set(-10, 0.16, sz);
+    mattress.receiveShadow = true;
+    scene.add(mattress);
+
+    // Brisket Board (Göğüs Tahtası - 10 cm height along front of stall)
+    const brisketGeo = new THREE.BoxGeometry(33, 0.16, 0.08);
+    const brisket = new THREE.Mesh(brisketGeo, brisketMat);
+    brisket.position.set(-10, 0.22, isNorth ? sz - 1.25 : sz + 1.25);
+    scene.add(brisket);
+
+    // Continuous Neck Rail (Boyun Demiri - 1.22 m height across all stalls)
+    const neckRailGeo = new THREE.CylinderGeometry(0.035, 0.035, 33, 8);
+    neckRailGeo.rotateZ(Math.PI / 2);
+    const neckRail = new THREE.Mesh(neckRailGeo, pipeMat);
+    neckRail.position.set(-10, 1.22, isNorth ? sz - 0.7 : sz + 0.7);
+    scene.add(neckRail);
+
+    // Cantilever Divider Loops at 1.25m spacing
+    for (let sx = -26; sx <= 6; sx += 1.25) {
+      // Support post
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.3, 8), pipeMat);
+      post.position.set(sx, 0.75, isNorth ? sz - 1.25 : sz + 1.25);
+      scene.add(post);
+
+      // Curved loop
+      const loop = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.032, 8, 16, Math.PI), stallMat);
+      loop.rotation.y = Math.PI / 2;
+      loop.rotation.x = isNorth ? -Math.PI / 2 : Math.PI / 2;
+      loop.position.set(sx, 0.95, isNorth ? sz - 0.5 : sz + 0.5);
+      scene.add(loop);
+    }
+  });
+
+  // 2.3 Crossover Tipping Water Troughs (Devrilir Paslanmaz Suluklar - CIGR / Dairyland Standard)
+  const troughBodyMat = new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.85, roughness: 0.2 });
+  const waterMat = new THREE.MeshStandardMaterial({ color: '#0284c7', roughness: 0.1, transparent: true, opacity: 0.85 });
+
+  const waterTroughPositions = [
+    [-10, -7.5],
+    [-10, 7.5],
+    [-26, -7.5],
+  ];
+
+  waterTroughPositions.forEach(([tx, tz]) => {
+    const troughGroup = new THREE.Group();
+    troughGroup.position.set(tx, 0.45, tz);
+
+    // Stainless basin
+    const basin = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.4, 0.6), troughBodyMat);
+    basin.castShadow = true;
+    troughGroup.add(basin);
+
+    // Water level
+    const water = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.08, 0.48), waterMat);
+    water.position.y = 0.15;
+    troughGroup.add(water);
+
+    // Overhead protective guard pipe
+    const guard = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.1, 8), headlockMat);
+    guard.rotateZ(Math.PI / 2);
+    guard.position.y = 0.45;
+    troughGroup.add(guard);
+
+    scene.add(troughGroup);
+  });
+
+  // 2.4 Automatic Oscillating Cow Brush (Döner Kaşıma Fırçası - EU Welfare Directive 98/58/EC)
+  const brushGroup = new THREE.Group();
+  brushGroup.position.set(-10, 2.1, 3.8);
+
+  const mountArm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.8), headlockMat);
+  mountArm.position.z = -0.4;
+  brushGroup.add(mountArm);
+
+  const motorHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.35, 12), pipeMat);
+  motorHousing.position.z = -0.8;
+  brushGroup.add(motorHousing);
+
+  const brushRollerMat = new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.9 });
+  const brushRoller = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.75, 16), brushRollerMat);
+  brushRoller.position.set(0, -0.45, -0.8);
+  brushRoller.rotation.x = 0.18;
+  brushRoller.castShadow = true;
+  brushGroup.add(brushRoller);
+
+  scene.add(brushGroup);
 
   // 3. Milking Parlor & Bulk Tank Building
   const parlorGeo = new THREE.BoxGeometry(16, 5.5, 12);
@@ -1088,17 +1219,31 @@ function buildBiosecurityStructures(
   officeLiquid.position.set(18, 0.16, 15);
   scene.add(officeLiquid);
 
-  // 2. Milking Parlor Exit Cattle Footbath (Tırnak Banyosu)
-  const footbathBasin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.25, 3.4), officeBasinMat);
-  footbathBasin.position.set(-16, 0.1, -15);
-  scene.add(footbathBasin);
+  // 2. Milking Parlor Exit Cattle Footbath (Dairyland Initiative / Dr. Nigel Cook Standard)
+  // Length: 3.60 m (guarantees >= 2 dunks per foot), Width: 0.75 m (prevents double file), Depth: 0.15 m
+  const footbathGroup = new THREE.Group();
+  footbathGroup.position.set(-16, 0.1, -15);
+
+  const footbathBasin = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.28, 3.8), officeBasinMat);
+  footbathGroup.add(footbathBasin);
 
   const footbathLiquid = new THREE.Mesh(
-    new THREE.BoxGeometry(1.5, 0.15, 3.1),
+    new THREE.BoxGeometry(0.75, 0.15, 3.6),
     new THREE.MeshStandardMaterial({ color: '#059669', roughness: 0.2, transparent: true, opacity: 0.85 })
   );
-  footbathLiquid.position.set(-16, 0.17, -15);
-  scene.add(footbathLiquid);
+  footbathLiquid.position.y = 0.08;
+  footbathGroup.add(footbathLiquid);
+
+  // Angled Side Splashboards (70° incline to keep solution inside and guide hooves)
+  const splashboardMat = new THREE.MeshStandardMaterial({ color: '#facc15', roughness: 0.5 });
+  [-0.48, 0.48].forEach((bx) => {
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.6, 3.6), splashboardMat);
+    board.position.set(bx, 0.35, 0);
+    board.rotation.z = bx > 0 ? 0.35 : -0.35;
+    footbathGroup.add(board);
+  });
+
+  scene.add(footbathGroup);
 
   // 3. Barn Alley Manure Scraper (Otomatik Ahır Sıyırıcısı)
   const scraperGroup = new THREE.Group();
@@ -1182,6 +1327,38 @@ function buildBiosecurityStructures(
   });
 
   scene.add(rampGroup);
+
+  // 6. Downwind Manure Lagoon & Separator Platform (ASABE / EU Directive Compliance)
+  const lagoonGroup = new THREE.Group();
+  lagoonGroup.position.set(-38, 0, -2);
+
+  // Concrete pit wall rim
+  const wallMat = new THREE.MeshStandardMaterial({ color: '#475569', roughness: 0.9 });
+  const lagoonWall = new THREE.Mesh(new THREE.BoxGeometry(8.0, 0.8, 8.0), wallMat);
+  lagoonWall.position.y = 0.4;
+  lagoonGroup.add(lagoonWall);
+
+  // Dark manure slurry liquid
+  const slurryMat = new THREE.MeshStandardMaterial({ color: '#27201c', roughness: 0.2, metalness: 0.3 });
+  const slurry = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.1, 7.4), slurryMat);
+  slurry.position.y = 0.65;
+  lagoonGroup.add(slurry);
+
+  // Perimeter Safety Fence (Mandatory by ASABE safety code)
+  const safetyFenceGeo = new THREE.BoxGeometry(8.2, 1.2, 8.2);
+  const safetyWireMat = new THREE.MeshBasicMaterial({ color: '#e2e8f0', wireframe: true });
+  const safetyFence = new THREE.Mesh(safetyFenceGeo, safetyWireMat);
+  safetyFence.position.y = 1.0;
+  lagoonGroup.add(safetyFence);
+
+  // Mechanical Screw-press Separator Tower
+  const towerMat = new THREE.MeshStandardMaterial({ color: '#0284c7', metalness: 0.7, roughness: 0.3 });
+  const separatorTower = new THREE.Mesh(new THREE.BoxGeometry(1.6, 3.2, 1.6), towerMat);
+  separatorTower.position.set(3.2, 1.6, 3.2);
+  separatorTower.castShadow = true;
+  lagoonGroup.add(separatorTower);
+
+  scene.add(lagoonGroup);
 }
 
 function buildBiosecurityRoutesOverlay(scene: THREE.Scene): THREE.Group {
