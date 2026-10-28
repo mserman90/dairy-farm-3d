@@ -10,6 +10,8 @@ import {
   Dna,
   Settings,
   Activity,
+  Truck,
+  ShieldCheck,
 } from 'lucide-react';
 import { ModalType, useFarmStore } from '../store/useFarmStore';
 import { getTranslation } from '../locales/i18n';
@@ -90,6 +92,11 @@ export const Dock: React.FC = () => {
       icon: <Activity className="w-5 h-5" />,
       badge: unresolvedEventsCount > 0 ? unresolvedEventsCount : undefined,
       badgeColor: 'bg-red-600 text-white animate-bounce',
+    },
+    {
+      id: 'logistics',
+      label: language === 'tr' ? 'Lojistik & Biyogüvenlik' : 'Logistics',
+      icon: <Truck className="w-5 h-5" />,
     },
     {
       id: 'settings',

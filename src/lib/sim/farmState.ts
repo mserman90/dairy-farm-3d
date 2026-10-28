@@ -6,6 +6,7 @@ import { analyzeRation, generateOptimalRation } from './nutrition';
 import { Cow, FarmState, FeedId, FinancialRecord, NotificationItem, getCircadianPhase } from './types';
 import { generateDailyWeather, getSeasonForDay } from './weather';
 import { evaluateFarmEvents } from './farmEvents';
+import { createInitialLogisticsState, tickLogisticsSimulation } from './logistics';
 
 export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 'normal'): FarmState {
   const startingCash = difficulty === 'easy' ? 120000 : difficulty === 'normal' ? 65000 : 25000;
@@ -445,6 +446,7 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       pipesFrozen: false,
       bulkTankFailure: false,
     },
+    logistics: createInitialLogisticsState(),
   };
 }
 
@@ -469,6 +471,10 @@ export function tickFarmSimulation(
   if (next.vetCooldownMinutes > 0) {
     next.vetCooldownMinutes = Math.max(0, next.vetCooldownMinutes - simMinutesElapsed);
   }
+
+  // 0. Çiftlik Lojistiği, İnsan-Hayvan-Alet Hareketleri Simülasyonu
+  const currentLogistics = next.logistics || createInitialLogisticsState();
+  next.logistics = tickLogisticsSimulation(currentLogistics, deltaSeconds * state.gameSpeed);
 
   // 1. Sirkadiyen Ritm & Günün Evresi
   const phaseInfo = getCircadianPhase(next.hour);

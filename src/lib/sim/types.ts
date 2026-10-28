@@ -366,6 +366,77 @@ export interface FarmState {
     pipesFrozen: boolean;
     bulkTankFailure: boolean;
   };
+
+  // Çiftlik Lojistiği, Biyogüvenlik & İnsan-Hayvan-Alet Hareketleri Sistemi
+  logistics?: FarmLogisticsState;
+}
+
+// =============================================================================
+// BİYOGÜVENLİK VE ÇİFTLİK HAREKETLERİ LOJİSTİK SİSTEMİ TİPLERİ
+// =============================================================================
+export type BiosecurityZoneId =
+  | 'entry_office'     // 1. Giriş, Soyunma, Dezenfeksiyon & Ofis
+  | 'clean_calf'       // 2. Buzağı Bölmesi & Kolostrum (En Temiz)
+  | 'clean_milking'    // 3. Sağım Salonu & Süt Tankı (En Temiz)
+  | 'barn_lactating'   // 4. Sağmal Ahır & Yemlik Yolu
+  | 'maternity_dry'    // 5. Doğumhane & Kuru Dönem Grubu
+  | 'quarantine_sick'  // 6. Hasta / Karantina Reviri (İzole Hat)
+  | 'manure_waste';    // 7. Gübre Çukuru, Sıyırıcı Sonu & Atık Sahası (Kirli Hat)
+
+export interface BiosecurityZone {
+  id: BiosecurityZoneId;
+  nameTr: string;
+  nameEn: string;
+  cleanlinessLevel: number; // 1 (en temiz) -> 5 (en kirli)
+  color: string;
+  position3D: [number, number, number];
+  descriptionTr: string;
+}
+
+export interface HumanMovementState {
+  staffCount: number;
+  bootWashActive: boolean;
+  shiftRoutine: 'morning_prep' | 'milking_routine' | 'feeding_clean' | 'health_inspection' | 'evening_wrap';
+  vetOnDuty: boolean;
+  vetTargetCowId: string | null;
+  visitorPassActive: boolean;
+  biosecurityCompliancePct: number;
+  lastViolationMessage: string | null;
+}
+
+export interface AnimalMovementState {
+  milkingBatchActive: boolean;
+  milkingProgressPct: number;
+  feedLineRushActive: boolean;
+  cowsInMaternity: string[];
+  cowsInQuarantine: string[];
+  cowsInHeatObservation: string[];
+  transferHistory: Array<{
+    cowId: string;
+    fromZone: string;
+    toZone: string;
+    reason: string;
+    timestamp: number;
+  }>;
+}
+
+export interface EquipmentMovementState {
+  tmrMixerRunning: boolean;
+  tmrMixerProgress: number;
+  manureScraperRunning: boolean;
+  manureScraperPos: number;
+  milkTankerConnected: boolean;
+  calfMilkTaxiActive: boolean;
+  pressureWasherActive: boolean;
+  footbathCopperSulfateFresh: boolean;
+  manurePitLevelPct: number;
+}
+
+export interface FarmLogisticsState {
+  human: HumanMovementState;
+  animal: AnimalMovementState;
+  equipment: EquipmentMovementState;
+  routesVisible3D: boolean;
 }
 
 export type FarmEventCategory =

@@ -6,6 +6,7 @@ import { generateOptimalRation } from '../lib/sim/nutrition';
 import { createInitialFarmState, tickFarmSimulation } from '../lib/sim/farmState';
 import { resolveFarmEvent } from '../lib/sim/farmEvents';
 import { syncWithTosunPasaMaster, TosunPasaSyncSummary } from '../lib/sim/tosunPasaBridge';
+import { createInitialLogisticsState } from '../lib/sim/logistics';
 import {
   Breed,
   Cow,
@@ -34,7 +35,8 @@ export type ModalType =
   | 'breedLab'
   | 'settings'
   | 'reproWheel' // Tosun Paşa 283 Günlük İnek Çarkı Modalı
-  | 'events';   // Çiftlik Olayları & Kriz Yönetim Modalı
+  | 'events'    // Çiftlik Olayları & Kriz Yönetim Modalı
+  | 'logistics'; // Biyogüvenlik, Lojistik & Çiftlik Hareketleri Modalı
 
 interface FarmStore {
   farm: FarmState;
@@ -106,6 +108,18 @@ interface FarmStore {
   // Custom Breed
   addCustomBreedAction: (breed: Breed) => void;
 
+  // Lojistik & Biyogüvenlik Hareketleri
+  triggerMilkingBatchAction: () => void;
+  triggerFeedingRushAction: () => void;
+  transferCowToMaternityAction: (cowId: string) => boolean;
+  transferCowToQuarantineAction: (cowId: string) => boolean;
+  releaseCowFromQuarantineAction: (cowId: string) => boolean;
+  toggleTmrMixerAction: () => void;
+  refreshFootbathAction: () => void;
+  callVetInspectionAction: (cowId?: string) => void;
+  registerVisitorAction: (name: string, company: string) => void;
+  toggleRoutesOverlayAction: () => void;
+
   // Persistence & Tosun Paşa Entegrasyonu
   syncWithTosunPasaAction: (explicitDb?: any) => TosunPasaSyncSummary;
   resetFarmState: (difficulty?: 'easy' | 'normal' | 'hard') => void;
@@ -145,6 +159,7 @@ function loadPersistedState(): FarmState {
           if (parsed.facilities.toxinBinderActive === undefined) parsed.facilities.toxinBinderActive = false;
         }
         if (!parsed.recentFarmEvents) parsed.recentFarmEvents = [];
+        if (!parsed.logistics) parsed.logistics = createInitialLogisticsState();
         if (!parsed.activeDisasters) {
           parsed.activeDisasters = {
             heatwaveAlert: false,
@@ -782,6 +797,254 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
         customBreeds: [...state.farm.customBreeds, breed],
       },
     }));
+  },
+
+  // Lojistik & Biyogüvenlik Hareketleri
+  triggerMilkingBatchAction: () => {
+    synthAudio.playMilkingPulsator();
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      return {
+        farm: {
+          ...state.farm,
+          logistics: {
+            ...log,
+            animal: {
+              ...log.animal,
+              milkingBatchActive: true,
+              milkingProgressPct: 15,
+            },
+          },
+        },
+      };
+    });
+  },
+
+  triggerFeedingRushAction: () => {
+    synthAudio.playCowMoo(1.1);
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      return {
+        farm: {
+          ...state.farm,
+          feedPushed: true,
+          feedPushCountdownHours: 4.0,
+          logistics: {
+            ...log,
+            animal: {
+              ...log.animal,
+              feedLineRushActive: true,
+            },
+          },
+        },
+      };
+    });
+  },
+
+  transferCowToMaternityAction: (cowId: string) => {
+    synthAudio.playClick();
+    const cow = get().farm.cows.find((c) => c.id === cowId);
+    if (!cow) return false;
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      const inMat = log.animal.cowsInMaternity.includes(cowId)
+        ? log.animal.cowsInMaternity
+        : [...log.animal.cowsInMaternity, cowId];
+      return {
+        farm: {
+          ...state.farm,
+          cows: state.farm.cows.map((c) => (c.id === cowId ? { ...c, position: [-28, 0, 8] } : c)),
+          logistics: {
+            ...log,
+            animal: {
+              ...log.animal,
+              cowsInMaternity: inMat,
+              transferHistory: [
+                {
+                  cowId,
+                  fromZone: 'Sağmal Ahır',
+                  toZone: 'Doğumhane & Yakın Gebe Locası',
+                  reason: 'Doğum yaklaşması & kolostrum hazırlığı',
+                  timestamp: Date.now(),
+                },
+                ...log.animal.transferHistory,
+              ],
+            },
+          },
+        },
+      };
+    });
+    return true;
+  },
+
+  transferCowToQuarantineAction: (cowId: string) => {
+    synthAudio.playWarningAlert();
+    const cow = get().farm.cows.find((c) => c.id === cowId);
+    if (!cow) return false;
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      const inQuar = log.animal.cowsInQuarantine.includes(cowId)
+        ? log.animal.cowsInQuarantine
+        : [...log.animal.cowsInQuarantine, cowId];
+      return {
+        farm: {
+          ...state.farm,
+          cows: state.farm.cows.map((c) => (c.id === cowId ? { ...c, position: [-28, 0, -8] } : c)),
+          logistics: {
+            ...log,
+            animal: {
+              ...log.animal,
+              cowsInQuarantine: inQuar,
+              transferHistory: [
+                {
+                  cowId,
+                  fromZone: 'Sağmal Ahır',
+                  toZone: 'Hasta / Karantina Reviri',
+                  reason: 'Hastalık / İlaç Kilidi izolasyonu (En son ziyaret kuralı)',
+                  timestamp: Date.now(),
+                },
+                ...log.animal.transferHistory,
+              ],
+            },
+          },
+        },
+      };
+    });
+    return true;
+  },
+
+  releaseCowFromQuarantineAction: (cowId: string) => {
+    synthAudio.playCashChime();
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      return {
+        farm: {
+          ...state.farm,
+          cows: state.farm.cows.map((c) => (c.id === cowId ? { ...c, position: [-10, 0, 0] } : c)),
+          logistics: {
+            ...log,
+            animal: {
+              ...log.animal,
+              cowsInQuarantine: log.animal.cowsInQuarantine.filter((id) => id !== cowId),
+              transferHistory: [
+                {
+                  cowId,
+                  fromZone: 'Hasta / Karantina Reviri',
+                  toZone: 'Sağmal Ahır',
+                  reason: 'İyileşme & İKAS arınma tamamlanması',
+                  timestamp: Date.now(),
+                },
+                ...log.animal.transferHistory,
+              ],
+            },
+          },
+        },
+      };
+    });
+    return true;
+  },
+
+  toggleTmrMixerAction: () => {
+    synthAudio.playTractorEngineSound();
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      const isRunning = !log.equipment.tmrMixerRunning;
+      return {
+        farm: {
+          ...state.farm,
+          logistics: {
+            ...log,
+            equipment: {
+              ...log.equipment,
+              tmrMixerRunning: isRunning,
+              tmrMixerProgress: isRunning ? 5 : 0,
+            },
+          },
+        },
+      };
+    });
+  },
+
+  refreshFootbathAction: () => {
+    synthAudio.playClick();
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      return {
+        farm: {
+          ...state.farm,
+          facilities: {
+            ...state.farm.facilities,
+            footBathActive: true,
+          },
+          logistics: {
+            ...log,
+            equipment: {
+              ...log.equipment,
+              footbathCopperSulfateFresh: true,
+            },
+            human: {
+              ...log.human,
+              biosecurityCompliancePct: Math.min(100, log.human.biosecurityCompliancePct + 5),
+            },
+          },
+        },
+      };
+    });
+  },
+
+  callVetInspectionAction: (cowId?: string) => {
+    synthAudio.playClick();
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      return {
+        farm: {
+          ...state.farm,
+          logistics: {
+            ...log,
+            human: {
+              ...log.human,
+              vetOnDuty: true,
+              vetTargetCowId: cowId || null,
+            },
+          },
+        },
+      };
+    });
+  },
+
+  registerVisitorAction: (name: string, company: string) => {
+    synthAudio.playClick();
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      return {
+        farm: {
+          ...state.farm,
+          logistics: {
+            ...log,
+            human: {
+              ...log.human,
+              visitorPassActive: true,
+            },
+          },
+        },
+      };
+    });
+  },
+
+  toggleRoutesOverlayAction: () => {
+    synthAudio.playClick();
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      return {
+        farm: {
+          ...state.farm,
+          logistics: {
+            ...log,
+            routesVisible3D: !log.routesVisible3D,
+          },
+        },
+      };
+    });
   },
 
   syncWithTosunPasaAction: (explicitDb?: any) => {

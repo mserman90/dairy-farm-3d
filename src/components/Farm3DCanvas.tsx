@@ -59,6 +59,10 @@ export const Farm3DCanvas: React.FC = () => {
   const cowMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const fanBladesRef = useRef<THREE.Group[]>([]);
   const tankerTruckRef = useRef<THREE.Group | null>(null);
+  const scraperMeshRef = useRef<THREE.Mesh | null>(null);
+  const milkTaxiRef = useRef<THREE.Group | null>(null);
+  const workerAvatarRef = useRef<THREE.Group | null>(null);
+  const routesOverlayRef = useRef<THREE.Group | null>(null);
   const weatherParticlesRef = useRef<THREE.Points | null>(null);
   const lightsRef = useRef<{
     sun: THREE.DirectionalLight;
@@ -130,6 +134,11 @@ export const Farm3DCanvas: React.FC = () => {
 
     // Build Static Farm Environment
     buildFarmEnvironment(scene, fanBladesRef, tankerTruckRef);
+
+    // Build Biosecurity Structures & Movement Overlays
+    buildBiosecurityStructures(scene, scraperMeshRef, milkTaxiRef);
+    routesOverlayRef.current = buildBiosecurityRoutesOverlay(scene);
+    workerAvatarRef.current = buildWorkerAvatar(scene);
 
     // Mouse and Keyboard Controls
     let isMouseDown = false;
@@ -312,6 +321,49 @@ export const Farm3DCanvas: React.FC = () => {
           }
           posAttr.needsUpdate = true;
         }
+      }
+
+      // Animate Manure Scraper
+      if (scraperMeshRef.current && farm.logistics?.equipment.manureScraperRunning) {
+        scraperMeshRef.current.position.z = Math.sin(time * 0.25) * 12;
+      }
+
+      // Animate Worker Avatar along clean-to-dirty biosecurity circuit
+      if (workerAvatarRef.current) {
+        const waypoints = [
+          new THREE.Vector3(18, 0, 18),
+          new THREE.Vector3(26, 0, -18),
+          new THREE.Vector3(-16, 0, -22),
+          new THREE.Vector3(-10, 0, 0),
+          new THREE.Vector3(-28, 0, 8),
+          new THREE.Vector3(-28, 0, -8),
+        ];
+        const loopDuration = 45;
+        const t = (time % loopDuration) / loopDuration;
+        const totalSegments = waypoints.length;
+        const segFloat = t * totalSegments;
+        const segIdx = Math.floor(segFloat);
+        const segT = segFloat - segIdx;
+        const p1 = waypoints[segIdx];
+        const p2 = waypoints[(segIdx + 1) % totalSegments];
+
+        workerAvatarRef.current.position.lerpVectors(p1, p2, segT);
+        const lookDir = new THREE.Vector3().subVectors(p2, p1).normalize();
+        if (lookDir.lengthSq() > 0.001) {
+          workerAvatarRef.current.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+        }
+
+        const leftLeg = workerAvatarRef.current.getObjectByName('worker_lleg');
+        const rightLeg = workerAvatarRef.current.getObjectByName('worker_rleg');
+        if (leftLeg && rightLeg) {
+          leftLeg.rotation.x = Math.sin(time * 6) * 0.4;
+          rightLeg.rotation.x = -Math.sin(time * 6) * 0.4;
+        }
+      }
+
+      // Toggle Routes Overlay visibility based on farm state
+      if (routesOverlayRef.current) {
+        routesOverlayRef.current.visible = !!farm.logistics?.routesVisible3D;
       }
 
       renderer.render(scene, camera);
@@ -1013,4 +1065,257 @@ function buildTractorAndMixer(scene: THREE.Scene): void {
 
   tractorGroup.add(mixerGroup);
   scene.add(tractorGroup);
+}
+
+// -------------------------------------------------------------
+// Biosecurity & Logistics 3D Helpers
+// -------------------------------------------------------------
+
+function buildBiosecurityStructures(
+  scene: THREE.Scene,
+  scraperRef: React.MutableRefObject<THREE.Mesh | null>,
+  milkTaxiRef: React.MutableRefObject<THREE.Group | null>
+): void {
+  // 1. Office & Personnel Entrance Disinfection Footbath
+  const officeBasinMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.8 });
+  const liquidMat = new THREE.MeshStandardMaterial({ color: '#0ea5e9', roughness: 0.1, transparent: true, opacity: 0.8 });
+
+  const officeBasin = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 1.6), officeBasinMat);
+  officeBasin.position.set(18, 0.1, 15);
+  scene.add(officeBasin);
+
+  const officeLiquid = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.12, 1.3), liquidMat);
+  officeLiquid.position.set(18, 0.16, 15);
+  scene.add(officeLiquid);
+
+  // 2. Milking Parlor Exit Cattle Footbath (Tırnak Banyosu)
+  const footbathBasin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.25, 3.4), officeBasinMat);
+  footbathBasin.position.set(-16, 0.1, -15);
+  scene.add(footbathBasin);
+
+  const footbathLiquid = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5, 0.15, 3.1),
+    new THREE.MeshStandardMaterial({ color: '#059669', roughness: 0.2, transparent: true, opacity: 0.85 })
+  );
+  footbathLiquid.position.set(-16, 0.17, -15);
+  scene.add(footbathLiquid);
+
+  // 3. Barn Alley Manure Scraper (Otomatik Ahır Sıyırıcısı)
+  const scraperGroup = new THREE.Group();
+  scraperGroup.position.set(-4, 0.12, 0);
+
+  const scraperMat = new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.8, roughness: 0.3 });
+  const bladeVLeft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 2.2), scraperMat);
+  bladeVLeft.position.set(-0.6, 0.15, 0);
+  bladeVLeft.rotation.y = 0.35;
+  bladeVLeft.castShadow = true;
+
+  const bladeVRight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 2.2), scraperMat);
+  bladeVRight.position.set(0.6, 0.15, 0);
+  bladeVRight.rotation.y = -0.35;
+  bladeVRight.castShadow = true;
+
+  const centerHitch = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.4), scraperMat);
+  centerHitch.position.set(0, 0.15, 0);
+
+  // Guide cable line
+  const cableMat = new THREE.MeshStandardMaterial({ color: '#1e293b' });
+  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 28), cableMat);
+  cable.rotation.x = Math.PI / 2;
+  cable.position.set(0, 0.15, 0);
+  scene.add(cable);
+
+  scraperGroup.add(bladeVLeft, bladeVRight, centerHitch);
+  scene.add(scraperGroup);
+  scraperRef.current = scraperGroup as unknown as THREE.Mesh;
+
+  // 4. Milk Taxi (Buzağı Süt Taksisi - Mobile Calf Milk Feeder)
+  const milkTaxi = new THREE.Group();
+  milkTaxi.position.set(23, 0, -15);
+
+  const tankMat = new THREE.MeshStandardMaterial({ color: '#e2e8f0', metalness: 0.9, roughness: 0.15 });
+  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.9, 16), tankMat);
+  tank.position.y = 0.8;
+  tank.castShadow = true;
+  milkTaxi.add(tank);
+
+  // Milk Taxi Handle & Wheels
+  const wheelMat = new THREE.MeshStandardMaterial({ color: '#1f2937' });
+  [-0.45, 0.45].forEach((wx) => {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.1, 12), wheelMat);
+    w.rotation.z = Math.PI / 2;
+    w.position.set(wx, 0.2, 0);
+    milkTaxi.add(w);
+  });
+  const castor = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.08, 12), wheelMat);
+  castor.rotation.z = Math.PI / 2;
+  castor.position.set(0, 0.12, -0.45);
+  milkTaxi.add(castor);
+
+  // Handlebar
+  const barMat = new THREE.MeshStandardMaterial({ color: '#ef4444' });
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.05), barMat);
+  bar.position.set(0, 1.1, -0.5);
+  milkTaxi.add(bar);
+
+  scene.add(milkTaxi);
+  milkTaxiRef.current = milkTaxi;
+
+  // 5. Cattle Loading / Unloading Ramp (Hayvan Yükleme Rampası)
+  const rampGroup = new THREE.Group();
+  rampGroup.position.set(-36, 0, 10);
+
+  const rampMat = new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.8 });
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.3, 7.0), rampMat);
+  ramp.position.set(0, 0.9, 0);
+  ramp.rotation.x = -0.25;
+  ramp.castShadow = true;
+  rampGroup.add(ramp);
+
+  // Ramp safety rails
+  const railMat = new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.6 });
+  [-1.7, 1.7].forEach((rx) => {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.2, 7.0), railMat);
+    rail.position.set(rx, 1.5, 0);
+    rail.rotation.x = -0.25;
+    rampGroup.add(rail);
+  });
+
+  scene.add(rampGroup);
+}
+
+function buildBiosecurityRoutesOverlay(scene: THREE.Scene): THREE.Group {
+  const overlayGroup = new THREE.Group();
+  overlayGroup.name = 'biosecurity_routes_overlay';
+
+  // 1. Clean Path (Green): Entry -> Office -> Calves -> Milking Parlor -> Barn
+  const cleanPoints = [
+    new THREE.Vector3(18, 0.25, 22),
+    new THREE.Vector3(18, 0.25, 14),
+    new THREE.Vector3(26, 0.25, -14),
+    new THREE.Vector3(26, 0.25, -20),
+    new THREE.Vector3(-16, 0.25, -20),
+    new THREE.Vector3(-10, 0.25, -5),
+    new THREE.Vector3(-10, 0.25, 0),
+  ];
+  const cleanGeo = new THREE.BufferGeometry().setFromPoints(cleanPoints);
+  const cleanMat = new THREE.LineBasicMaterial({ color: 0x10b981, linewidth: 3 });
+  const cleanLine = new THREE.Line(cleanGeo, cleanMat);
+  overlayGroup.add(cleanLine);
+
+  // 2. Dirty Path (Red): Barn -> Sick Bay / Quarantine -> Manure Lagoon
+  const dirtyPoints = [
+    new THREE.Vector3(-10, 0.25, 0),
+    new THREE.Vector3(-28, 0.25, -8),
+    new THREE.Vector3(-36, 0.25, -5),
+    new THREE.Vector3(-36, 0.25, 10),
+  ];
+  const dirtyGeo = new THREE.BufferGeometry().setFromPoints(dirtyPoints);
+  const dirtyMat = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 3 });
+  const dirtyLine = new THREE.Line(dirtyGeo, dirtyMat);
+  overlayGroup.add(dirtyLine);
+
+  // 3. Cow Milking Flow (Cyan/Blue): Barn -> Parlor -> Footbath -> Return
+  const milkingLoop = [
+    new THREE.Vector3(-10, 0.25, -2),
+    new THREE.Vector3(-16, 0.25, -12),
+    new THREE.Vector3(-16, 0.25, -22),
+    new THREE.Vector3(-14, 0.25, -16),
+    new THREE.Vector3(-10, 0.25, 4),
+  ];
+  const milkingGeo = new THREE.BufferGeometry().setFromPoints(milkingLoop);
+  const milkingMat = new THREE.LineBasicMaterial({ color: 0x06b6d4, linewidth: 2 });
+  const milkingLine = new THREE.Line(milkingGeo, milkingMat);
+  overlayGroup.add(milkingLine);
+
+  // 4. Zone Markers (Glowing discs on the ground)
+  const zoneMarkersData = [
+    { pos: [18, 0.15, 18], color: 0x3b82f6, radius: 2.2 }, // Office / Entry
+    { pos: [26, 0.15, -18], color: 0x10b981, radius: 3.5 }, // Calves (Level 1)
+    { pos: [-16, 0.15, -22], color: 0x10b981, radius: 4.0 }, // Milking (Level 1)
+    { pos: [-10, 0.15, 0], color: 0xf59e0b, radius: 5.0 }, // Freestall Barn (Level 3)
+    { pos: [-28, 0.15, 8], color: 0xf59e0b, radius: 3.0 }, // Maternity (Level 3)
+    { pos: [-28, 0.15, -8], color: 0xef4444, radius: 3.0 }, // Quarantine (Level 4)
+    { pos: [-36, 0.15, 4], color: 0x78716c, radius: 4.0 }, // Manure Lagoon (Level 5)
+  ];
+
+  zoneMarkersData.forEach((z) => {
+    const discGeo = new THREE.RingGeometry(z.radius - 0.2, z.radius, 32);
+    discGeo.rotateX(-Math.PI / 2);
+    const discMat = new THREE.MeshBasicMaterial({ color: z.color, side: THREE.DoubleSide, transparent: true, opacity: 0.75 });
+    const disc = new THREE.Mesh(discGeo, discMat);
+    disc.position.set(z.pos[0], z.pos[1], z.pos[2]);
+    overlayGroup.add(disc);
+  });
+
+  overlayGroup.visible = true;
+  scene.add(overlayGroup);
+  return overlayGroup;
+}
+
+function buildWorkerAvatar(scene: THREE.Scene): THREE.Group {
+  const worker = new THREE.Group();
+  worker.name = 'farm_worker_avatar';
+  worker.position.set(18, 0, 18);
+
+  const suitMat = new THREE.MeshStandardMaterial({ color: '#1d4ed8', roughness: 0.6 }); // Clean Blue coveralls
+  const vestMat = new THREE.MeshStandardMaterial({ color: '#facc15', roughness: 0.4 }); // Hi-vis safety vest
+  const skinMat = new THREE.MeshStandardMaterial({ color: '#fed7aa', roughness: 0.5 });
+  const bootMat = new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.9 });
+  const capMat = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.3 }); // White hygiene cap
+
+  // Pelvis / Waist
+  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.3), suitMat);
+  pelvis.position.y = 1.05;
+  worker.add(pelvis);
+
+  // Torso & Hi-vis Vest
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.35), vestMat);
+  torso.position.y = 1.45;
+  torso.castShadow = true;
+  worker.add(torso);
+
+  // Head & Hygiene Cap
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.35, 0.32), skinMat);
+  head.position.y = 1.95;
+  head.castShadow = true;
+  worker.add(head);
+
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.16, 12), capMat);
+  cap.position.y = 2.14;
+  worker.add(cap);
+
+  // Arms
+  [-0.38, 0.38].forEach((ax) => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.6, 0.16), suitMat);
+    arm.position.set(ax, 1.4, 0);
+    worker.add(arm);
+  });
+
+  // Left Leg
+  const leftLegGroup = new THREE.Group();
+  leftLegGroup.name = 'worker_lleg';
+  leftLegGroup.position.set(-0.16, 0.95, 0);
+  const leftPants = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.6, 0.2), suitMat);
+  leftPants.position.y = -0.3;
+  leftLegGroup.add(leftPants);
+  const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.25, 0.3), bootMat);
+  leftBoot.position.set(0, -0.65, 0.05);
+  leftLegGroup.add(leftBoot);
+  worker.add(leftLegGroup);
+
+  // Right Leg
+  const rightLegGroup = new THREE.Group();
+  rightLegGroup.name = 'worker_rleg';
+  rightLegGroup.position.set(0.16, 0.95, 0);
+  const rightPants = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.6, 0.2), suitMat);
+  rightPants.position.y = -0.3;
+  rightLegGroup.add(rightPants);
+  const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.25, 0.3), bootMat);
+  rightBoot.position.set(0, -0.65, 0.05);
+  rightLegGroup.add(rightBoot);
+  worker.add(rightLegGroup);
+
+  scene.add(worker);
+  return worker;
 }

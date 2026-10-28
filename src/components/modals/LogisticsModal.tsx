@@ -1,0 +1,651 @@
+import React, { useState } from 'react';
+import {
+  X,
+  ShieldCheck,
+  UserCheck,
+  Truck,
+  AlertTriangle,
+  RotateCcw,
+  Footprints,
+  Stethoscope,
+  Activity,
+  CheckCircle2,
+  MapPin,
+  Play,
+  Square,
+  Sparkles,
+} from 'lucide-react';
+import { useFarmStore } from '../../store/useFarmStore';
+import { BIOSECURITY_ZONES, validateBiosecurityFlow } from '../../lib/sim/logistics';
+import { BiosecurityZoneId } from '../../lib/sim/types';
+
+export const LogisticsModal: React.FC = () => {
+  const {
+    farm,
+    activeModal,
+    setActiveModal,
+    triggerMilkingBatchAction,
+    triggerFeedingRushAction,
+    transferCowToMaternityAction,
+    transferCowToQuarantineAction,
+    releaseCowFromQuarantineAction,
+    toggleTmrMixerAction,
+    toggleManureScraperAction,
+    refreshFootbathAction,
+    callVetInspectionAction,
+    registerVisitorAction,
+    toggleRoutesOverlayAction,
+  } = useFarmStore();
+
+  const [activeTab, setActiveTab] = useState<'human' | 'animal' | 'equipment' | 'biosecurity'>('human');
+  const [visitorName, setVisitorName] = useState('');
+  const [visitorCompany, setVisitorCompany] = useState('');
+  const [selectedMaternityCow, setSelectedMaternityCow] = useState('');
+  const [selectedQuarantineCow, setSelectedQuarantineCow] = useState('');
+  const [testFromZone, setTestFromZone] = useState<BiosecurityZoneId>('quarantine_sick');
+  const [testToZone, setTestToZone] = useState<BiosecurityZoneId>('clean_calf');
+  const [testDisinfected, setTestDisinfected] = useState(false);
+  const [flowValidationResult, setFlowValidationResult] = useState<{
+    allowed: boolean;
+    violationSeverity: string;
+    messageTr: string;
+  } | null>(null);
+
+  if (activeModal !== 'logistics') return null;
+
+  const log = farm.logistics;
+  const pregnantCows = farm.cows.filter((c) => c.daysPregnant >= 240);
+  const sickCows = farm.cows.filter((c) => c.health === 'clinical' || c.health === 'subclinical');
+
+  const handleTestFlow = () => {
+    const res = validateBiosecurityFlow(testFromZone, testToZone, testDisinfected);
+    setFlowValidationResult(res);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-slate-100">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                Biyogüvenlik, Lojistik & Çiftlik Hareketleri Sistemi
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                  Temiz ➔ Kirli Hat Kontrolü
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400">
+                İnsan, hayvan ve ekipman hareketlerini biyogüvenlik yön kurallarına göre denetleyin ve simüle edin.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveModal('none')}
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex border-b border-slate-800 bg-slate-900/90 px-6 gap-2 pt-2">
+          <button
+            onClick={() => setActiveTab('human')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+              activeTab === 'human'
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-950/20 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <UserCheck className="w-4 h-4" />
+            1. İnsan Hareketleri
+          </button>
+          <button
+            onClick={() => setActiveTab('animal')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+              activeTab === 'animal'
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-950/20 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            2. Hayvan Hareketleri
+          </button>
+          <button
+            onClick={() => setActiveTab('equipment')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+              activeTab === 'equipment'
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-950/20 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            3. Alet & Ekipman Lojistiği
+          </button>
+          <button
+            onClick={() => setActiveTab('biosecurity')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+              activeTab === 'biosecurity'
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-950/20 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            4. Biyogüvenlik Haritası
+          </button>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* TAB 1: İNSAN HAREKETLERİ */}
+          {activeTab === 'human' && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Core Principle Alert */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-emerald-500/30 flex items-start gap-3">
+                <Footprints className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <div className="font-bold text-emerald-300">
+                    Altın Kural: Temizden Kirliye Doğru Personel Akışı
+                  </div>
+                  <div className="text-slate-300">
+                    Personel hareketleri her zaman şu hiyerarşik sırayı takip etmelidir:
+                    <strong className="text-emerald-400"> Buzağı Bölmesi & Sağım Salonu</strong> ➔
+                    <strong className="text-amber-400"> Genç Hayvanlar & Sağmal Ahır</strong> ➔
+                    <strong className="text-rose-400"> Hasta / Karantina Bölmesi</strong> ➔
+                    <strong className="text-yellow-600"> Gübre / Atık Sahası</strong>.
+                    Hasta bölmesine daima mesai sonunda gidilmeli, ters yönde geçişte mutlaka dezenfeksiyon havuzundan geçilmelidir.
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700">
+                  <div className="text-xs text-slate-400">Aktif Çiftlik Personeli</div>
+                  <div className="text-2xl font-black text-slate-100 mt-1">
+                    {log?.human.staffCount || 4} Kişi
+                  </div>
+                  <div className="text-xs text-emerald-400 mt-1">İş kıyafeti & çizme değişimli</div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700">
+                  <div className="text-xs text-slate-400">Giriş Ayakkabı Dezenfeksiyonu</div>
+                  <div className="text-2xl font-black text-emerald-400 mt-1">
+                    {log?.human.bootWashActive ? 'Aktif (Hazır)' : 'Devre Dışı'}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">Giriş kabininde dezenfektan havuzu</div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700">
+                  <div className="text-xs text-slate-400">Biyogüvenlik Uyum Puanı</div>
+                  <div className="text-2xl font-black text-amber-400 mt-1">
+                    %{log?.human.biosecurityCompliancePct || 98}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">Temiz-kirli hat kurallarına riayet</div>
+                </div>
+              </div>
+
+              {/* Action Modules */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Veteriner Hekim & Sağlık Hareketi */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
+                    <Stethoscope className="w-4 h-4 text-emerald-400" />
+                    Veteriner Hekim Ahır Muayene Vizitesi
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Veteriner hekim koruyucu ekipmanla aşılama, tohumlama ve hasta muayenesi için ahıra giriş yapar. Muayene bitiminde ekipman dezenfekte edilir.
+                  </p>
+                  <button
+                    onClick={() => callVetInspectionAction()}
+                    className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-950"
+                  >
+                    <Stethoscope className="w-4 h-4" />
+                    Veteriner Hekim Vizitesini Başlat
+                  </button>
+                </div>
+
+                {/* Ziyaretçi Kabul & Kontrol */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
+                    <UserCheck className="w-4 h-4 text-amber-400" />
+                    Ziyaretçi Kayıt & Refakatli Geçiş Protokolü
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Dışarıdan gelen misafirler için giriş kaydı oluşturulur, tek kullanımlık tulum ve galoş verilerek sınırlandırılmış temiz hatta gezdirilir.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ziyaretçi Adı Soyadı"
+                      value={visitorName}
+                      onChange={(e) => setVisitorName(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
+                    />
+                    <button
+                      onClick={() => {
+                        if (visitorName.trim()) {
+                          registerVisitorAction(visitorName, visitorCompany);
+                          setVisitorName('');
+                        }
+                      }}
+                      className="py-1.5 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition"
+                    >
+                      Kaydet & Kabul Et
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: HAYVAN HAREKETLERİ */}
+          {activeTab === 'animal' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-3">
+                <Activity className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <div className="font-bold text-amber-300">
+                    Sürü Dinamiği & Grup Yönetim Prensipleri
+                  </div>
+                  <div className="text-slate-300">
+                    İneklerin ahır içi yataklık, yemlik ve suluk arasındaki serbest dolaşımı refahı artırır. Sağım saatinde sürünün topluca parlöre yönlendirilmesi, doğum yaklaşanların doğumhaneye ve hastaların revire transferi biyogüvenliğin temelidir.
+                  </div>
+                </div>
+              </div>
+
+              {/* Movement Triggers */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Sağım Sevk Hareketi */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="text-sm font-bold text-slate-200 flex items-center justify-between">
+                    <span>🐄 Sağım İçin Toplu Sevk & Dönüş</span>
+                    {log?.animal.milkingBatchActive && (
+                      <span className="text-xs text-emerald-400 animate-pulse font-bold">
+                        Sevk Sürüyor (%{Math.round(log.animal.milkingProgressPct)})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Sağım grubu inekleri toplama avlusuna sevk edilir, sağım salonuna girer ve sağım sonrası ayak banyosundan geçerek ahıra döner.
+                  </p>
+                  <button
+                    onClick={() => triggerMilkingBatchAction()}
+                    disabled={log?.animal.milkingBatchActive}
+                    className="w-full py-2.5 px-4 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <Play className="w-4 h-4" />
+                    Sağım Sevkini Başlat
+                  </button>
+                </div>
+
+                {/* Yemlik & Su Hattına Yönelme */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="text-sm font-bold text-slate-200">
+                    🌾 Yemlik-Su Hattı Hareketini Tetikle
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Yem itildiğinde veya taze TMR döküldüğünde ineklerin yataklıklardan kalkıp yemlik ve suluk hattına yönelmesini sağlar.
+                  </p>
+                  <button
+                    onClick={() => triggerFeedingRushAction()}
+                    className="w-full py-2.5 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <Footprints className="w-4 h-4" />
+                    İnekleri Yemlik Hattına Çağır
+                  </button>
+                </div>
+
+                {/* Doğumhaneye Transfer */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="text-sm font-bold text-purple-300">
+                    🍼 Gebe / Doğumu Yaklaşan İnek Hareketi
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Doğumuna 15-20 gün kalan gebeleri özel saman altlıklı temiz doğumhaneye nakleder.
+                  </p>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedMaternityCow}
+                      onChange={(e) => setSelectedMaternityCow(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                    >
+                      <option value="">İnek Seçiniz...</option>
+                      {pregnantCows.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.tagNumber} - {c.name} ({c.daysPregnant} Gün Gebe)
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => {
+                        if (selectedMaternityCow) {
+                          transferCowToMaternityAction(selectedMaternityCow);
+                        }
+                      }}
+                      className="py-1.5 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition"
+                    >
+                      Doğumhaneye Al
+                    </button>
+                  </div>
+                </div>
+
+                {/* Karantina / Revir İzolasyonu */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="text-sm font-bold text-rose-300">
+                    🚨 Hasta Hayvan & Karantina İzolasyonu
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Hastalık belirtisi gösteren veya İKAS ilaç arınma kilidi altındaki hayvanı ayrı revir bölmesine nakleder.
+                  </p>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedQuarantineCow}
+                      onChange={(e) => setSelectedQuarantineCow(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                    >
+                      <option value="">Hasta İnek Seçiniz...</option>
+                      {sickCows.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.tagNumber} - {c.name} ({c.activeDrugName || 'Klinik Muayene'})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => {
+                        if (selectedQuarantineCow) {
+                          transferCowToQuarantineAction(selectedQuarantineCow);
+                        }
+                      }}
+                      className="py-1.5 px-4 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition"
+                    >
+                      Karantinaya Al
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transfer Geçmişi */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
+                <div className="text-xs font-bold text-slate-300 mb-2">
+                  Son Sürü Değişimi & Transfer Kayıtları
+                </div>
+                {log?.animal.transferHistory && log.animal.transferHistory.length > 0 ? (
+                  <div className="space-y-2">
+                    {log.animal.transferHistory.slice(0, 4).map((tr, idx) => (
+                      <div
+                        key={idx}
+                        className="text-xs p-2 rounded bg-slate-900/60 border border-slate-800 flex justify-between items-center"
+                      >
+                        <div>
+                          <strong className="text-emerald-400">İnek {tr.cowId}</strong>: {tr.fromZone} ➔ {tr.toZone}
+                        </div>
+                        <div className="text-slate-400">{tr.reason}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic">Henüz özel bölme transferi kaydedilmedi.</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: ALET & EKİPMAN LOJİSTİĞİ */}
+          {activeTab === 'equipment' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-3">
+                <Truck className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <div className="font-bold text-sky-300">
+                    Mekanizasyon & Temizlik Ekipman Güzergâhları
+                  </div>
+                  <div className="text-slate-300">
+                    Traktör, yem karma vagonu, koridor sıyırıcıları, buzağı süt taksisi ve süt toplama araçlarının rotası temiz üretim alanlarını kirletmeyecek şekilde planlanır.
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Yem Dağıtım Traktörü */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="flex items-center justify-between text-sm font-bold text-slate-200">
+                    <span>🚜 TMR Yem Karma & Dağıtım Traktörü</span>
+                    {log?.equipment.tmrMixerRunning ? (
+                      <span className="text-xs text-amber-400 animate-pulse">
+                        Yem Yolu Seyrinde (%{Math.round(log.equipment.tmrMixerProgress)})
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">Park Halinde</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Silaj ambarından yüklenen homojen rasyonu yem yoluna serer.
+                  </p>
+                  <button
+                    onClick={() => toggleTmrMixerAction()}
+                    className={`w-full py-2.5 px-4 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition ${
+                      log?.equipment.tmrMixerRunning
+                        ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                    }`}
+                  >
+                    {log?.equipment.tmrMixerRunning ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    {log?.equipment.tmrMixerRunning ? 'Traktörü Durdur' : 'Yem Dağıtım Seferini Başlat'}
+                  </button>
+                </div>
+
+                {/* Otomatik Koridor Sıyırıcısı */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="flex items-center justify-between text-sm font-bold text-slate-200">
+                    <span>🧹 Otomatik Koridor Gübre Sıyırıcısı</span>
+                    <span className="text-xs text-emerald-400">
+                      Konum: {Math.round(log?.equipment.manureScraperPos || 0)}m
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Koridordaki taze gübreyi düzenli aralıklarla sıyırarak gübre kanalına ve lagüne tahliye eder.
+                  </p>
+                  <button
+                    onClick={() => toggleManureScraperAction(!log?.equipment.manureScraperRunning)}
+                    className="w-full py-2.5 px-4 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    {log?.equipment.manureScraperRunning ? 'Sıyırıcıyı Duraklat' : 'Sıyırıcıyı Çalıştır'}
+                  </button>
+                </div>
+
+                {/* Biyogüvenlik Ayak Banyosu */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="text-sm font-bold text-emerald-400">
+                    🧴 Çiftlik Ayak Banyosu (Bakır Sülfat / Formalin)
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Sağım çıkışında ineklerin tırnak enfeksiyonlarından korunmasını ve ahır giriş dezenfeksiyonunu sağlar.
+                  </p>
+                  <button
+                    onClick={() => refreshFootbathAction()}
+                    className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-emerald-950"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Dezenfektan Solüsyonunu Yenile
+                  </button>
+                </div>
+
+                {/* Gübre Lagünü Doluluk */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="flex justify-between items-center text-sm font-bold text-slate-200">
+                    <span>🛢️ Gübre Çukuru & Atık Havuzu</span>
+                    <span className="text-xs text-amber-400 font-bold">
+                      %{Math.round(log?.equipment.manurePitLevelPct || 35)} Dolu
+                    </span>
+                  </div>
+                  <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                    <div
+                      className="h-full bg-amber-600 transition-all duration-300"
+                      style={{ width: `${Math.round(log?.equipment.manurePitLevelPct || 35)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Temiz üretim alanlarından uzakta, çiftlik rüzgâr altı yönünde konumlanmıştır.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: BİYOGÜVENLİK HARİTASI & DENETLEYİCİ */}
+          {activeTab === 'biosecurity' && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* 3D Overlay Toggle */}
+              <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/40 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-emerald-300">
+                    3D Biyogüvenlik Rota & Hat Katmanı
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    3D simülasyon sahnesinde Yeşil (Temiz Hat), Sarı (Üretim Hattı) ve Kırmızı (Karantina Hattı) güzergâhlarını gösterir.
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleRoutesOverlayAction()}
+                  className={`px-4 py-2 rounded-lg font-bold text-xs transition ${
+                    log?.routesVisible3D
+                      ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-900'
+                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                  }`}
+                >
+                  {log?.routesVisible3D ? '🟢 3D Hatlar Açık' : '⚪ Hatları Göster'}
+                </button>
+              </div>
+
+              {/* 7 Biosecurity Zones Table */}
+              <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
+                <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 text-xs font-bold text-slate-300">
+                  Çiftlik Biyogüvenlik Bölge Hiyerarşisi (Temiz ➔ Kirli Sıralaması)
+                </div>
+                <div className="divide-y divide-slate-800/80">
+                  {BIOSECURITY_ZONES.map((zone) => (
+                    <div key={zone.id} className="p-3.5 flex items-center justify-between gap-4 text-xs">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm"
+                          style={{ backgroundColor: zone.color }}
+                        />
+                        <div>
+                          <div className="font-bold text-slate-200">{zone.nameTr}</div>
+                          <div className="text-slate-400 text-[11px]">{zone.descriptionTr}</div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 font-bold text-slate-300">
+                          Seviye {zone.cleanlinessLevel} ({zone.cleanlinessLevel <= 2 ? 'Temiz' : zone.cleanlinessLevel === 3 ? 'Üretim' : 'Kirli/İzole'})
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Interactive Biosecurity Rule Test Tool */}
+              <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                <div className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  İnteraktif Temiz-Kirli Hat Geçiş Doğrulama Testi
+                </div>
+                <p className="text-xs text-slate-400">
+                  Herhangi iki bölge arasında insan veya alet hareketini simüle ederek biyogüvenlik kuralını test edin.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Çıkış Noktası (Nereden):</label>
+                    <select
+                      value={testFromZone}
+                      onChange={(e) => setTestFromZone(e.target.value as BiosecurityZoneId)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200"
+                    >
+                      {BIOSECURITY_ZONES.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.nameTr} (Seviye {z.cleanlinessLevel})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Varış Noktası (Nereye):</label>
+                    <select
+                      value={testToZone}
+                      onChange={(e) => setTestToZone(e.target.value as BiosecurityZoneId)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200"
+                    >
+                      {BIOSECURITY_ZONES.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.nameTr} (Seviye {z.cleanlinessLevel})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col justify-end">
+                    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer mb-2">
+                      <input
+                        type="checkbox"
+                        checked={testDisinfected}
+                        onChange={(e) => setTestDisinfected(e.target.checked)}
+                        className="rounded border-slate-700 text-emerald-500 focus:ring-0"
+                      />
+                      Çizme/Ekipman Dezenfekte Edildi
+                    </label>
+                    <button
+                      onClick={handleTestFlow}
+                      className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"
+                    >
+                      Geçişi Denetle
+                    </button>
+                  </div>
+                </div>
+
+                {flowValidationResult && (
+                  <div
+                    className={`p-3.5 rounded-lg text-xs font-semibold flex items-center gap-2.5 ${
+                      flowValidationResult.allowed
+                        ? 'bg-emerald-950/60 border border-emerald-600/50 text-emerald-300'
+                        : 'bg-rose-950/60 border border-rose-600/50 text-rose-300 animate-shake'
+                    }`}
+                  >
+                    {flowValidationResult.allowed ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+                    )}
+                    <span>{flowValidationResult.messageTr}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Tosun Paşa Uluslararası Biyogüvenlik & Sürü Lojistik Protokolü devrede.</span>
+          </div>
+          <button
+            onClick={() => setActiveModal('none')}
+            className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition"
+          >
+            Kapat
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -17,6 +17,7 @@ import { BreedEngineerModal } from './components/modals/BreedEngineerModal';
 import { ReproWheelModal } from './components/modals/ReproWheelModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { FarmEventsModal } from './components/modals/FarmEventsModal';
+import { LogisticsModal } from './components/modals/LogisticsModal';
 
 import { synthAudio } from './lib/audio/synthAudio';
 
@@ -84,6 +85,9 @@ export const App: React.FC = () => {
       } else if (e.code === 'KeyP') {
         e.preventDefault();
         pushFeedAction();
+      } else if (e.code === 'KeyL') {
+        e.preventDefault();
+        setActiveModal(activeModal === 'none' ? 'logistics' : 'none');
       } else if (e.code === 'Tab') {
         e.preventDefault();
         setActiveModal(activeModal === 'none' ? 'herd' : 'none');
@@ -144,6 +148,7 @@ export const App: React.FC = () => {
       <ReproWheelModal />
       <SettingsModal />
       <FarmEventsModal />
+      <LogisticsModal />
     </div>
   );
 };
