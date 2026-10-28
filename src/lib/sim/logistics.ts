@@ -158,12 +158,13 @@ export function tickLogisticsSimulation(
 ): FarmLogisticsState {
   const next = { ...state };
 
-  // 1. Otomatik Gübre Sıyırıcısı Hareketi (İleri-Geri Koridor Taraması)
+  // 1. Otomatik Gübre Sıyırıcısı Hareketi (Temiz Doğu Girişinden Batı Lagün Tahliye Kanalına)
   if (next.equipment.manureScraperRunning) {
-    let newPos = next.equipment.manureScraperPos + deltaSeconds * 0.8;
-    if (newPos > 15) {
-      newPos = -15; // Başa dön
-      next.equipment.manurePitLevelPct = Math.min(100, next.equipment.manurePitLevelPct + 0.1);
+    // 32 metrelik koridor boyunca 0.8 m/sn (yaklaşık 40 sn tam tur)
+    let newPos = next.equipment.manureScraperPos + deltaSeconds * 1.0;
+    if (newPos > 32) {
+      newPos = 0; // Başa dön (Temiz uçtan yeni sıyırma turu)
+      next.equipment.manurePitLevelPct = Math.min(100, next.equipment.manurePitLevelPct + 0.25);
     }
     next.equipment.manureScraperPos = newPos;
   }

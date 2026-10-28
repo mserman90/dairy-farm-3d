@@ -453,17 +453,21 @@ export const LogisticsModal: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Otomatik Koridor Sıyırıcısı */}
+                {/* Otomatik Çift Koridor Gübre Sıyırıcıları */}
                 <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
                   <div className="flex items-center justify-between text-sm font-bold text-slate-200">
-                    <span>🧹 Otomatik Koridor Gübre Sıyırıcısı</span>
-                    <span className="text-xs text-emerald-400">
-                      Konum: {Math.round(log?.equipment.manureScraperPos || 0)}m
+                    <span>🧹 Çift Koridor Otomatik Gübre Sıyırıcıları (Kuzey & Güney)</span>
+                    <span className="text-xs text-emerald-400 font-mono">
+                      {Math.round(log?.equipment.manureScraperPos || 0)} / 32m
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Koridordaki taze gübreyi düzenli aralıklarla sıyırarak gübre kanalına ve lagüne tahliye eder.
+                    <strong>Uluslararası Yön Kuralı:</strong> Temiz Doğu ucundan (x = +6) başlayarak gübreyi Batıdaki enine tahliye ızgarasına (x = -27) ve lagüne doğru iter. Dönüşte V-kanatları içe katlanır.
                   </p>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded border border-slate-800">
+                    <span>Hareket Yönü: <strong className="text-emerald-400">Temiz ➔ Kirli / Lagün</strong></span>
+                    <span>Hız: <strong className="text-slate-200">3.0 m/dk (Hayvan Güvenli)</strong></span>
+                  </div>
                   <button
                     onClick={() => toggleManureScraperAction(!log?.equipment.manureScraperRunning)}
                     className="w-full py-2.5 px-4 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition"

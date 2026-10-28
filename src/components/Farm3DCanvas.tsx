@@ -323,9 +323,50 @@ export const Farm3DCanvas: React.FC = () => {
         }
       }
 
-      // Animate Manure Scraper
+      // Animate Manure Scrapers (Moving strictly from Clean East End towards West Drop Pit & Lagoon)
       if (scraperMeshRef.current && farm.logistics?.equipment.manureScraperRunning) {
-        scraperMeshRef.current.position.z = Math.sin(time * 0.25) * 12;
+        const cycleDuration = 32; // 32-second total cycle (slow, realistic animal-safe scraping speed)
+        const progress = (time % cycleDuration) / cycleDuration; // 0.0 to 1.0
+
+        let posX: number;
+        let isScraping: boolean;
+
+        if (progress < 0.58) {
+          // Scraping Stroke: From Clean End (x = 5.5) towards West Discharge Drop Pit (x = -26.5)
+          const t = progress / 0.58;
+          posX = 5.5 + t * (-26.5 - 5.5);
+          isScraping = true;
+        } else {
+          // Return Stroke: From Drop Pit (x = -26.5) back to Clean End (x = 5.5) with wings collapsed
+          const t = (progress - 0.58) / 0.42;
+          posX = -26.5 + t * (5.5 - (-26.5));
+          isScraping = false;
+        }
+
+        ['scraper_north', 'scraper_south'].forEach((scraperName) => {
+          const scraper = scraperMeshRef.current?.getObjectByName(scraperName);
+          if (scraper) {
+            scraper.position.x = posX;
+
+            // Wing angles: open when scraping forward (pushing manure), folded when returning
+            const targetWingAngle = isScraping ? 0.42 : 0.09;
+            const wingL = scraper.getObjectByName('wing_l');
+            const wingR = scraper.getObjectByName('wing_r');
+            const manure = scraper.getObjectByName('manure_pile');
+
+            if (wingL && wingR) {
+              wingL.rotation.y = targetWingAngle;
+              wingR.rotation.y = -targetWingAngle;
+            }
+
+            if (manure) {
+              manure.visible = isScraping;
+              // Accumulate manure volume as it advances towards the drop pit
+              const progressFraction = Math.max(0.1, (5.5 - posX) / 32);
+              manure.scale.set(0.6 + progressFraction * 0.6, 1, 0.7 + progressFraction * 0.5);
+            }
+          }
+        });
       }
 
       // Animate Worker Avatar along clean-to-dirty biosecurity circuit
@@ -1245,34 +1286,90 @@ function buildBiosecurityStructures(
 
   scene.add(footbathGroup);
 
-  // 3. Barn Alley Manure Scraper (Otomatik Ahır Sıyırıcısı)
-  const scraperGroup = new THREE.Group();
-  scraperGroup.position.set(-4, 0.12, 0);
+  // 3. Barn Dual Alley Manure Scrapers (Kuzey ve Güney Gübre Koridorları Otomatik Sıyırıcıları)
+  // Direction of Travel: From Clean East End (x = +6) towards West Drop Pit & Lagoon (x = -27)
+  const scrapersMasterGroup = new THREE.Group();
+  scrapersMasterGroup.name = 'scrapers_master_group';
 
   const scraperMat = new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.8, roughness: 0.3 });
-  const bladeVLeft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 2.2), scraperMat);
-  bladeVLeft.position.set(-0.6, 0.15, 0);
-  bladeVLeft.rotation.y = 0.35;
-  bladeVLeft.castShadow = true;
+  const cableMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.8 });
+  const grateMat = new THREE.MeshStandardMaterial({ color: '#0f172a', metalness: 0.9, roughness: 0.4 });
+  const motorMat = new THREE.MeshStandardMaterial({ color: '#1e3a8a', roughness: 0.5 });
+  const manureMat = new THREE.MeshStandardMaterial({ color: '#27201c', roughness: 0.95 });
 
-  const bladeVRight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 2.2), scraperMat);
-  bladeVRight.position.set(0.6, 0.15, 0);
-  bladeVRight.rotation.y = -0.35;
-  bladeVRight.castShadow = true;
+  const alleyConfigs = [
+    { name: 'scraper_north', z: -5.0 },
+    { name: 'scraper_south', z: 5.0 },
+  ];
 
-  const centerHitch = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.4), scraperMat);
-  centerHitch.position.set(0, 0.15, 0);
+  alleyConfigs.forEach(({ name, z }) => {
+    // 3.1 Heavy-Duty Steel Guide Cable along X axis
+    const cableGeo = new THREE.CylinderGeometry(0.02, 0.02, 34, 8);
+    cableGeo.rotateZ(Math.PI / 2);
+    const cable = new THREE.Mesh(cableGeo, cableMat);
+    cable.position.set(-10, 0.08, z);
+    scrapersMasterGroup.add(cable);
 
-  // Guide cable line
-  const cableMat = new THREE.MeshStandardMaterial({ color: '#1e293b' });
-  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 28), cableMat);
-  cable.rotation.x = Math.PI / 2;
-  cable.position.set(0, 0.15, 0);
-  scene.add(cable);
+    // 3.2 Idler Corner Pulley at Clean East End (x = 6.8)
+    const idlerPulley = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.15, 12), scraperMat);
+    idlerPulley.position.set(6.8, 0.15, z);
+    scrapersMasterGroup.add(idlerPulley);
 
-  scraperGroup.add(bladeVLeft, bladeVRight, centerHitch);
-  scene.add(scraperGroup);
-  scraperRef.current = scraperGroup as unknown as THREE.Mesh;
+    // 3.3 Drive Winch & Electric Gear Motor at Discharge West End (x = -27.8)
+    const driveMotor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.7), motorMat);
+    driveMotor.position.set(-27.8, 0.45, z);
+    driveMotor.castShadow = true;
+    scrapersMasterGroup.add(driveMotor);
+
+    // 3.4 Cross-Gutter Drop Pit Grate (Enine Gübre Boşaltım Izgarası at x = -26.8)
+    // Manure drops through this grate into the underground pipe connecting to the lagoon
+    const dropGrate = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.06, 3.4), grateMat);
+    dropGrate.position.set(-26.8, 0.12, z);
+    dropGrate.receiveShadow = true;
+    scrapersMasterGroup.add(dropGrate);
+
+    // 3.5 The Scraper Sled with Folding V-Wings (Sıyırıcı Kızağı ve Katlanır Kanatlar)
+    const scraperSled = new THREE.Group();
+    scraperSled.name = name;
+    scraperSled.position.set(0, 0.12, z);
+
+    // Center Hitch / Guide Slider
+    const centerSlider = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.18, 0.35), scraperMat);
+    centerSlider.position.set(0, 0.1, 0);
+    centerSlider.castShadow = true;
+    scraperSled.add(centerSlider);
+
+    // Left Folding Wing (Pivot attached to slider, reaches to alley curb)
+    const wingLGroup = new THREE.Group();
+    wingLGroup.name = 'wing_l';
+    wingLGroup.position.set(0.1, 0.12, -0.15);
+    const bladeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 1.6), scraperMat);
+    bladeL.position.set(0.15, 0, -0.8);
+    bladeL.castShadow = true;
+    wingLGroup.add(bladeL);
+    scraperSled.add(wingLGroup);
+
+    // Right Folding Wing (Pivot attached to slider, reaches to alley curb)
+    const wingRGroup = new THREE.Group();
+    wingRGroup.name = 'wing_r';
+    wingRGroup.position.set(0.1, 0.12, 0.15);
+    const bladeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 1.6), scraperMat);
+    bladeR.position.set(0.15, 0, 0.8);
+    bladeR.castShadow = true;
+    wingRGroup.add(bladeR);
+    scraperSled.add(wingRGroup);
+
+    // Manure Wave / Pile in front of the blade being pushed towards the drop pit (-X direction)
+    const manurePile = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 2.6), manureMat);
+    manurePile.name = 'manure_pile';
+    manurePile.position.set(-0.55, 0.11, 0);
+    scraperSled.add(manurePile);
+
+    scrapersMasterGroup.add(scraperSled);
+  });
+
+  scene.add(scrapersMasterGroup);
+  scraperRef.current = scrapersMasterGroup as unknown as THREE.Mesh;
 
   // 4. Milk Taxi (Buzağı Süt Taksisi - Mobile Calf Milk Feeder)
   const milkTaxi = new THREE.Group();
