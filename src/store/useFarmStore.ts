@@ -159,7 +159,18 @@ function loadPersistedState(): FarmState {
           if (parsed.facilities.toxinBinderActive === undefined) parsed.facilities.toxinBinderActive = false;
         }
         if (!parsed.recentFarmEvents) parsed.recentFarmEvents = [];
-        if (!parsed.logistics) parsed.logistics = createInitialLogisticsState();
+        if (!parsed.logistics) {
+          parsed.logistics = createInitialLogisticsState();
+        } else {
+          if (!parsed.logistics.equipment) {
+            parsed.logistics.equipment = createInitialLogisticsState().equipment;
+          }
+          // Uluslararası gerçekçi simülasyon standardı: Mikser vagon ve sıyırıcı varsayılan olarak canlı çalışır
+          parsed.logistics.equipment.tmrMixerRunning = true;
+          if (parsed.logistics.equipment.manureScraperRunning === undefined) {
+            parsed.logistics.equipment.manureScraperRunning = true;
+          }
+        }
         if (!parsed.activeDisasters) {
           parsed.activeDisasters = {
             heatwaveAlert: false,

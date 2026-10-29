@@ -277,11 +277,28 @@ export const Farm3DCanvas: React.FC = () => {
     let lastTime = performance.now();
     const startTime = performance.now();
 
+    // Catmull-Rom Smooth Closed Route for Tractor & TMR Mixer Wagon (Central Feed Alley & Feed Center Circuit)
+    const feedRouteCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(14, 0.32, 10),   // 1. Silaj ambarı & yem hazırlama alanı
+      new THREE.Vector3(13, 0.32, 4.5),  // 2. Avlu yaklaşım yolu
+      new THREE.Vector3(9, 0.32, 0.65),  // 3. Doğu kapısından ahır içine giriş
+      new THREE.Vector3(-10, 0.32, 0.65),// 4. Merkezi yem yolunda batıya seyir (Güney yemlik kilitleri hattı)
+      new THREE.Vector3(-24, 0.32, 0.65),// 5. Batı kapısına yaklaşım
+      new THREE.Vector3(-27, 0.32, 0.0), // 6. Batı U-dönüşü apeksi (5.0m yem yolu dönüş manevrası)
+      new THREE.Vector3(-24, 0.32, -0.65),// 7. Kuzey yemlik kilitleri hattına dönüş
+      new THREE.Vector3(-10, 0.32, -0.65),// 8. Merkezi yem yolunda doğuya seyir (Kuzey yemlik kilitleri hattı)
+      new THREE.Vector3(9, 0.32, -0.65), // 9. Doğu kapısına varış
+      new THREE.Vector3(13, 0.32, 4.5),  // 10. Doğu kapısından avluya çıkış ve yem merkezine dönüş
+    ], true);
+
     const animate = (currentTime: number) => {
       animId = requestAnimationFrame(animate);
       const delta = Math.min((currentTime - lastTime) / 1000, 0.1);
       lastTime = currentTime;
       const time = (currentTime - startTime) / 1000;
+
+      // Güncel Zustand store verisini doğrudan oku (React closure stale state problemini önler)
+      const currentFarmState = useFarmStore.getState().farm;
 
       // Pan keys (WASD / QE)
       const forward = new THREE.Vector3(-Math.sin(orbitAzimuth), 0, -Math.cos(orbitAzimuth)).normalize();
@@ -350,7 +367,8 @@ export const Farm3DCanvas: React.FC = () => {
       }
 
       // Animate Manure Scrapers (Moving strictly from Clean East End towards West Drop Pit & Lagoon)
-      if (scraperMeshRef.current && farm.logistics?.equipment.manureScraperRunning) {
+      const isScraperRunning = currentFarmState.logistics?.equipment.manureScraperRunning !== false;
+      if (scraperMeshRef.current && isScraperRunning) {
         const cycleDuration = 32; // 32-second total cycle (slow, realistic animal-safe scraping speed)
         const progress = (time % cycleDuration) / cycleDuration; // 0.0 to 1.0
 
@@ -395,62 +413,48 @@ export const Farm3DCanvas: React.FC = () => {
         });
       }
 
-      // Animate Tractor & TMR Mixer Wagon along Central Feed Alley
+      // Animate Tractor & TMR Mixer Wagon along Central Feed Alley (Catmull-Rom kesintisiz pürüzsüz seyir)
       if (tractorTruckRef.current) {
-        const isRunning = farm.logistics?.equipment.tmrMixerRunning ?? true;
+        const isTmrRunning = currentFarmState.logistics?.equipment.tmrMixerRunning !== false;
 
-        if (isRunning) {
-          // Gerçekçi 5.0m yem yolu devri:
-          // 1. Silaj ambarı / yem mutfağı çıkışı (x: 14, z: 10)
-          // 2. Doğu ahır kapısından giriş (x: 9, z: 0.5)
-          // 3. Merkezi yem yolunda batıya doğru ilerleme & TMR dökümü (x: -26, z: 0.5)
-          // 4. Batı ucunda 5 metrelik yolda yumuşak U dönüşü (x: -27, z: 0) -> (x: -26, z: -0.5)
-          // 5. Kuzey yemlik önünden doğuya dönüş seyri (x: 9, z: -0.5)
-          // 6. Doğu kapısından çıkıp yem merkezine dönüş (x: 14, z: 6)
-          const waypoints = [
-            new THREE.Vector3(14, 0.1, 10),
-            new THREE.Vector3(9, 0.1, 0.5),
-            new THREE.Vector3(-26, 0.1, 0.5),
-            new THREE.Vector3(-27, 0.1, 0.0),
-            new THREE.Vector3(-26, 0.1, -0.5),
-            new THREE.Vector3(9, 0.1, -0.5),
-            new THREE.Vector3(14, 0.1, 6),
-          ];
+        if (isTmrRunning) {
+          const loopDuration = 48; // 48 saniyelik pürüzsüz ve gerçekçi yem dağıtım turu
+          const u = (time % loopDuration) / loopDuration;
+          const pos = feedRouteCurve.getPointAt(u);
+          tractorTruckRef.current.position.copy(pos);
 
-          const loopDuration = 45; // 45 saniyelik yem dağıtım seferi
-          const t = (time % loopDuration) / loopDuration;
-          const totalSegments = waypoints.length;
-          const segFloat = t * totalSegments;
-          const segIdx = Math.floor(segFloat);
-          const segT = segFloat - segIdx;
-          const p1 = waypoints[segIdx];
-          const p2 = waypoints[(segIdx + 1) % totalSegments];
-
-          tractorTruckRef.current.position.lerpVectors(p1, p2, segT);
-
-          // Sürüş yönüne doğru yönelme (Heading)
-          const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
-          if (dir.lengthSq() > 0.001) {
-            const targetYaw = Math.atan2(dir.x, dir.z);
+          // Sürüş yönüne doğru pürüzsüz yönelme (Heading)
+          const tangent = feedRouteCurve.getTangentAt(u).normalize();
+          if (tangent.lengthSq() > 0.001) {
+            const targetYaw = Math.atan2(tangent.x, tangent.z);
             const curYaw = tractorTruckRef.current.rotation.y;
             let diff = targetYaw - curYaw;
             while (diff > Math.PI) diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
-            tractorTruckRef.current.rotation.y += diff * 0.12;
+            tractorTruckRef.current.rotation.y += diff * 0.25;
           }
 
           // Dikey helezon karıştırıcının dönüşü
           const auger = tractorTruckRef.current.getObjectByName('mixer_auger');
           if (auger) {
-            auger.rotation.y += 14 * delta;
+            auger.rotation.y += 15 * delta;
           }
 
-          // Traktör ve mikser tekerleklerinin dönmesi
+          // Traktör ve mikser tekerleklerinin aks boyunca dönmesi
           tractorTruckRef.current.traverse((child) => {
             if (child.name.includes('wheel')) {
-              child.rotation.x += 16 * delta;
+              child.rotation.x += 14 * delta;
             }
           });
+
+          // Canlı yem döküm akışı (Ahır içindeyken yemlik kilitlerine taze TMR akışı)
+          const feedStream = tractorTruckRef.current.getObjectByName('feed_stream');
+          if (feedStream) {
+            feedStream.visible = pos.x >= -25 && pos.x <= 8.5;
+            if (feedStream.visible) {
+              feedStream.scale.y = 0.85 + Math.sin(time * 25) * 0.15;
+            }
+          }
 
           // Motor rölanti mikro-titreşimi
           const hood = tractorTruckRef.current.getObjectByName('tractor_hood');
@@ -458,10 +462,12 @@ export const Farm3DCanvas: React.FC = () => {
             hood.position.y = 1.2 + Math.sin(time * 35) * 0.008;
           }
         } else {
-          // Park Halinde (Yem ambarı önü)
-          const parkPos = new THREE.Vector3(6, 0.1, 14);
-          tractorTruckRef.current.position.lerp(parkPos, 0.05);
+          // Park Halinde (Silaj ambarı önü)
+          const parkPos = new THREE.Vector3(14, 0.32, 10);
+          tractorTruckRef.current.position.lerp(parkPos, 0.08);
           tractorTruckRef.current.rotation.y = -0.6;
+          const feedStream = tractorTruckRef.current.getObjectByName('feed_stream');
+          if (feedStream) feedStream.visible = false;
         }
       }
 
@@ -498,9 +504,9 @@ export const Farm3DCanvas: React.FC = () => {
         }
       }
 
-      // Toggle Routes Overlay visibility based on farm state
+      // Toggle Routes Overlay visibility based on live farm state
       if (routesOverlayRef.current) {
-        routesOverlayRef.current.visible = !!farm.logistics?.routesVisible3D;
+        routesOverlayRef.current.visible = !!currentFarmState.logistics?.routesVisible3D;
       }
 
       renderer.render(scene, camera);
@@ -1321,9 +1327,10 @@ function buildTractorAndMixer(
   });
 
   // Big Rear Wheels
+  const rearWheelGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 16);
+  rearWheelGeo.rotateZ(Math.PI / 2);
   [-1.0, 1.0].forEach((wx) => {
-    const rearWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.5, 16), blackMat);
-    rearWheel.rotateZ(Math.PI / 2);
+    const rearWheel = new THREE.Mesh(rearWheelGeo, blackMat);
     rearWheel.position.set(wx, 0.85, -0.9);
     rearWheel.castShadow = true;
     rearWheel.name = 'tractor_wheel_rear';
@@ -1331,9 +1338,10 @@ function buildTractorAndMixer(
   });
 
   // Front Wheels
+  const frontWheelGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.35, 16);
+  frontWheelGeo.rotateZ(Math.PI / 2);
   [-0.9, 0.9].forEach((wx) => {
-    const frontWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.35, 16), blackMat);
-    frontWheel.rotateZ(Math.PI / 2);
+    const frontWheel = new THREE.Mesh(frontWheelGeo, blackMat);
     frontWheel.position.set(wx, 0.5, 1.2);
     frontWheel.castShadow = true;
     frontWheel.name = 'tractor_wheel_front';
@@ -1354,9 +1362,10 @@ function buildTractorAndMixer(
   mixerGroup.add(tub);
 
   // Mixer Trailer Wheels
+  const wagonWheelGeo = new THREE.CylinderGeometry(0.65, 0.65, 0.38, 16);
+  wagonWheelGeo.rotateZ(Math.PI / 2);
   [-1.25, 1.25].forEach((wx) => {
-    const wagonWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.38, 16), blackMat);
-    wagonWheel.rotateZ(Math.PI / 2);
+    const wagonWheel = new THREE.Mesh(wagonWheelGeo, blackMat);
     wagonWheel.position.set(wx, 0.65, 0);
     wagonWheel.castShadow = true;
     wagonWheel.name = 'wagon_wheel';
@@ -1369,6 +1378,19 @@ function buildTractorAndMixer(
   chute.position.set(1.4, 0.9, 0.4);
   chute.rotation.z = -0.3;
   mixerGroup.add(chute);
+
+  // Live Silage Stream from Chute onto Feed Bunk (Aktif TMR Döküm Akışı)
+  const streamMat = new THREE.MeshStandardMaterial({
+    color: '#ca8a04',
+    roughness: 0.95,
+    emissive: '#713f12',
+    emissiveIntensity: 0.25,
+  });
+  const feedStream = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.75, 0.45), streamMat);
+  feedStream.name = 'feed_stream';
+  feedStream.position.set(1.55, 0.45, 0.4);
+  feedStream.rotation.z = -0.2;
+  mixerGroup.add(feedStream);
 
   // Mixer Auger inside tub (Dönen dikey helezon karıştırıcı)
   const auger = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.8, 8), new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.4 }));
