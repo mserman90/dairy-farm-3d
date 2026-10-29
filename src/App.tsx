@@ -18,6 +18,7 @@ import { ReproWheelModal } from './components/modals/ReproWheelModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { FarmEventsModal } from './components/modals/FarmEventsModal';
 import { LogisticsModal } from './components/modals/LogisticsModal';
+import { DigitalTwinModal } from './components/modals/DigitalTwinModal';
 
 import { synthAudio } from './lib/audio/synthAudio';
 
@@ -88,6 +89,9 @@ export const App: React.FC = () => {
       } else if (e.code === 'KeyL') {
         e.preventDefault();
         setActiveModal(activeModal === 'none' ? 'logistics' : 'none');
+      } else if (e.code === 'KeyT' || e.code === 'KeyD') {
+        e.preventDefault();
+        setActiveModal(activeModal === 'none' ? 'digitalTwin' : 'none');
       } else if (e.code === 'Tab') {
         e.preventDefault();
         setActiveModal(activeModal === 'none' ? 'herd' : 'none');
@@ -149,6 +153,7 @@ export const App: React.FC = () => {
       <SettingsModal />
       <FarmEventsModal />
       <LogisticsModal />
+      <DigitalTwinModal />
     </div>
   );
 };

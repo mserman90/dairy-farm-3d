@@ -23,6 +23,7 @@ import {
   Minimize,
   Settings as SettingsIcon,
   RefreshCw,
+  Network,
 } from 'lucide-react';
 import { useFarmStore } from '../store/useFarmStore';
 import { getTranslation } from '../locales/i18n';
@@ -229,6 +230,19 @@ export const TopBar: React.FC = () => {
         >
           <span>🌾</span>
           <span className="text-[11px]">{farm.feedPushed ? 'Yem İtildi' : 'Yemi İt!'}</span>
+        </button>
+
+        {/* Dijital İkiz (Digital Twin) & IoT Telemetri Kokpiti */}
+        <button
+          onClick={() => setActiveModal('digitalTwin')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow-sm hover:shadow-emerald-900/40"
+          title="Çiftlik Dijital İkizi, XAI Erken Teşhis & inSiliCow Modeli (Kısayol: T)"
+        >
+          <Network className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+          <span>DİJİTAL İKİZ</span>
+          {(farm.digitalTwin?.xaiAlerts || []).length > 0 && (
+            <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
+          )}
         </button>
       </div>
 

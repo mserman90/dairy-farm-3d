@@ -64,6 +64,8 @@ export const Farm3DCanvas: React.FC = () => {
   const milkTaxiRef = useRef<THREE.Group | null>(null);
   const workerAvatarRef = useRef<THREE.Group | null>(null);
   const routesOverlayRef = useRef<THREE.Group | null>(null);
+  const digitalTwinGroupRef = useRef<THREE.Group | null>(null);
+  const sheddingGateRef = useRef<THREE.Group | null>(null);
   const weatherParticlesRef = useRef<THREE.Points | null>(null);
   const lightsRef = useRef<{
     sun: THREE.DirectionalLight;
@@ -140,6 +142,9 @@ export const Farm3DCanvas: React.FC = () => {
     buildBiosecurityStructures(scene, scraperMeshRef, milkTaxiRef);
     routesOverlayRef.current = buildBiosecurityRoutesOverlay(scene);
     workerAvatarRef.current = buildWorkerAvatar(scene);
+
+    // Build Digital Twin IoT Sensor Probes & Smart Shedding Gate
+    buildDigitalTwinObjects(scene, digitalTwinGroupRef, sheddingGateRef);
 
     // Mouse and Keyboard Controls
     let isMouseDown = false;
@@ -507,6 +512,30 @@ export const Farm3DCanvas: React.FC = () => {
       // Toggle Routes Overlay visibility based on live farm state
       if (routesOverlayRef.current) {
         routesOverlayRef.current.visible = !!currentFarmState.logistics?.routesVisible3D;
+      }
+
+      // Animate Digital Twin IoT Probes & Smart Shedding Gate
+      if (digitalTwinGroupRef.current) {
+        const isDtVisible = currentFarmState.digitalTwin?.mode3DOverlay ?? true;
+        digitalTwinGroupRef.current.visible = isDtVisible;
+        const beaconMat = digitalTwinGroupRef.current.userData?.beaconMat;
+        if (beaconMat) {
+          beaconMat.emissiveIntensity = 0.5 + Math.sin(time * 5) * 0.4;
+        }
+      }
+
+      if (sheddingGateRef.current) {
+        const gateProgress = currentFarmState.digitalTwin?.sheddingGate.gateOpenProgress ?? 0;
+        const gateWing = sheddingGateRef.current.getObjectByName('shedding_wing');
+        if (gateWing) {
+          gateWing.rotation.y = gateProgress * 1.15;
+        }
+        const greenLight = sheddingGateRef.current.getObjectByName('light_green');
+        const redLight = sheddingGateRef.current.getObjectByName('light_red');
+        if (greenLight && redLight) {
+          greenLight.visible = gateProgress < 0.2;
+          redLight.visible = gateProgress >= 0.2;
+        }
       }
 
       renderer.render(scene, camera);
@@ -1758,4 +1787,137 @@ function buildWorkerAvatar(scene: THREE.Scene): THREE.Group {
 
   scene.add(worker);
   return worker;
+}
+
+// -----------------------------------------------------------------------------
+// Dijital İkiz (Digital Twin) 3D IoT Sensör Probları & Akıllı Ayırma Kapısı
+// -----------------------------------------------------------------------------
+function buildDigitalTwinObjects(
+  scene: THREE.Scene,
+  dtGroupRef: React.MutableRefObject<THREE.Group | null>,
+  sheddingGateRef: React.MutableRefObject<THREE.Group | null>
+): void {
+  const dtMasterGroup = new THREE.Group();
+  dtMasterGroup.name = 'digital_twin_master_group';
+
+  // 1. IoT Sensör Düğümleri (Barınak makaslarına ve kritik noktalara asılı problar)
+  const sensorGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.38, 8);
+  const sensorHousingMat = new THREE.MeshStandardMaterial({ color: '#0f172a', metalness: 0.8, roughness: 0.2 });
+  const beaconMat = new THREE.MeshStandardMaterial({
+    color: '#10b981',
+    emissive: '#10b981',
+    emissiveIntensity: 0.8,
+  });
+  dtMasterGroup.userData.beaconMat = beaconMat;
+
+  const probeLocations: [number, number, number][] = [
+    [-18, 7.5, 5],
+    [-2, 7.5, 5],
+    [-18, 7.5, -5],
+    [-2, 7.5, -5],
+    [-10, 3.5, 0],
+    [-10, 8.5, 0],
+    [-10, 0.4, 2.5],
+    [-10, 0.4, -2.5],
+  ];
+
+  probeLocations.forEach(([px, py, pz]) => {
+    const probe = new THREE.Group();
+    probe.position.set(px, py, pz);
+
+    const housing = new THREE.Mesh(sensorGeo, sensorHousingMat);
+    housing.castShadow = true;
+    probe.add(housing);
+
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), beaconMat);
+    led.position.y = 0.24;
+    probe.add(led);
+
+    // Çatı asma teli
+    if (py > 5) {
+      const wire = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.012, 0.012, 2.2, 4),
+        new THREE.MeshBasicMaterial({ color: '#475569' })
+      );
+      wire.position.y = 1.25;
+      probe.add(wire);
+    }
+
+    dtMasterGroup.add(probe);
+  });
+
+  // 2. Mikroklima THI Termal Isı Haritası (Zemin üzeri şeffaf konfor/stres ızgarası)
+  const heatmapMat = new THREE.MeshStandardMaterial({
+    color: '#059669',
+    transparent: true,
+    opacity: 0.16,
+    roughness: 0.9,
+  });
+  const heatmapGrid = new THREE.Mesh(new THREE.PlaneGeometry(36, 18), heatmapMat);
+  heatmapGrid.rotateX(-Math.PI / 2);
+  heatmapGrid.position.set(-10, 0.18, 0);
+  dtMasterGroup.add(heatmapGrid);
+
+  scene.add(dtMasterGroup);
+  dtGroupRef.current = dtMasterGroup;
+
+  // 3. Pnömatik Otomatik Ayırma Kapısı (Smart Shedding Gate at Parlor Exit)
+  const gateGroup = new THREE.Group();
+  gateGroup.name = 'smart_shedding_gate';
+  gateGroup.position.set(-16, 0.1, -11.5);
+
+  const postMat = new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.8 });
+  const wingMat = new THREE.MeshStandardMaterial({ color: '#f59e0b', metalness: 0.4, roughness: 0.3 });
+
+  // Taşıyıcı direkler
+  [-1.0, 1.0].forEach((gx) => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.2, 0.15), postMat);
+    post.position.set(gx, 1.1, 0);
+    post.castShadow = true;
+    gateGroup.add(post);
+  });
+
+  // Üst telemetri ve sensör kirişi
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.25, 0.25), postMat);
+  beam.position.set(0, 2.1, 0);
+  gateGroup.add(beam);
+
+  // Durum Işıkları (Yeşil: Sürüye Dönüş / Kırmızı: Revire Ayırma)
+  const greenLight = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 8, 8),
+    new THREE.MeshStandardMaterial({ color: '#10b981', emissive: '#10b981', emissiveIntensity: 1.0 })
+  );
+  greenLight.name = 'light_green';
+  greenLight.position.set(-0.4, 2.35, 0);
+  gateGroup.add(greenLight);
+
+  const redLight = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 8, 8),
+    new THREE.MeshStandardMaterial({ color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 1.0 })
+  );
+  redLight.name = 'light_red';
+  redLight.position.set(0.4, 2.35, 0);
+  redLight.visible = false;
+  gateGroup.add(redLight);
+
+  // Pnömatik itici silindir
+  const cylMat = new THREE.MeshStandardMaterial({ color: '#0ea5e9', metalness: 0.6 });
+  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8, 8), cylMat);
+  cyl.position.set(-0.85, 1.4, 0.2);
+  gateGroup.add(cyl);
+
+  // Dönen Ayırma Kanadı (Shedding Gate Wing)
+  const gateWing = new THREE.Group();
+  gateWing.name = 'shedding_wing';
+  gateWing.position.set(-0.9, 0, 0);
+
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 0.08), wingMat);
+  blade.position.set(0.9, 0.7, 0);
+  blade.castShadow = true;
+  gateWing.add(blade);
+
+  gateGroup.add(gateWing);
+
+  scene.add(gateGroup);
+  sheddingGateRef.current = gateGroup;
 }

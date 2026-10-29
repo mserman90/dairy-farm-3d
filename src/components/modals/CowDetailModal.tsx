@@ -11,6 +11,7 @@ import {
   Scale,
   ShieldAlert,
   Droplet,
+  Network,
 } from 'lucide-react';
 import { useFarmStore } from '../../store/useFarmStore';
 import { getTranslation } from '../../locales/i18n';
@@ -356,6 +357,53 @@ export const CowDetailModal: React.FC = () => {
                   ? (language === 'tr' ? '🔥 Östrus / Yüksek hareket' : '🔥 Estrus spike')
                   : (language === 'tr' ? 'Normal sürü hareketi' : 'Baseline movement')}
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dijital İkiz (Digital Twin) & IoT Biyometrik Telemetrisi */}
+        <div className="bg-gradient-to-r from-emerald-950/40 to-slate-950/80 p-3.5 rounded-xl border border-emerald-500/30 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+              <Network className="w-4 h-4" />
+              🌐 Dijital İkiz Canlı Telemetrisi (ICAR ADE)
+            </span>
+            <span className="text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+              Gerçek Zamanlı Sensör Akışı
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span className="text-[10px] text-slate-400 block">Süt İletkenliği</span>
+              <strong className={`font-mono text-sm ${(cow.milkConductivityMs ?? 5.1) >= 6.2 ? 'text-rose-400' : 'text-emerald-300'}`}>
+                {(cow.milkConductivityMs ?? 5.1).toFixed(1)} mS/cm
+              </strong>
+              <span className="text-[9px] text-slate-500 block">Ref: 4.8 - 5.5</span>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span className="text-[10px] text-slate-400 block">inSiliCow Rumen pH</span>
+              <strong className={`font-mono text-sm ${(cow.rumenPh ?? 6.45) < 5.8 ? 'text-rose-400' : 'text-cyan-300'}`}>
+                {(cow.rumenPh ?? 6.45).toFixed(2)} pH
+              </strong>
+              <span className="text-[9px] text-slate-500 block">Ref: 6.20 - 6.80</span>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span className="text-[10px] text-slate-400 block">Yatış Dinlenmesi</span>
+              <strong className="font-mono text-sm text-slate-200">
+                {(cow.lyingHoursToday ?? 12.4).toFixed(1)} sa/gün
+              </strong>
+              <span className="text-[9px] text-slate-500 block">Ref: 11 - 14 sa</span>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span className="text-[10px] text-slate-400 block">RuFaS Enterik Metan</span>
+              <strong className="font-mono text-sm text-amber-300">
+                {cow.methaneGramsPerDay ?? 390} g CH₄
+              </strong>
+              <span className="text-[9px] text-slate-500 block">Karbon ayak izi</span>
             </div>
           </div>
         </div>

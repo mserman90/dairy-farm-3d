@@ -12,6 +12,7 @@ import {
   Activity,
   Truck,
   ShieldCheck,
+  Network,
 } from 'lucide-react';
 import { ModalType, useFarmStore } from '../store/useFarmStore';
 import { getTranslation } from '../locales/i18n';
@@ -97,6 +98,13 @@ export const Dock: React.FC = () => {
       id: 'logistics',
       label: language === 'tr' ? 'Lojistik & Biyogüvenlik' : 'Logistics',
       icon: <Truck className="w-5 h-5" />,
+    },
+    {
+      id: 'digitalTwin',
+      label: language === 'tr' ? 'Dijital İkiz (XAI & IoT)' : 'Digital Twin',
+      icon: <Network className="w-5 h-5 text-emerald-400" />,
+      badge: (farm.digitalTwin?.xaiAlerts || []).length > 0 ? farm.digitalTwin?.xaiAlerts.length : undefined,
+      badgeColor: 'bg-emerald-600 text-white animate-pulse',
     },
     {
       id: 'settings',

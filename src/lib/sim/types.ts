@@ -226,6 +226,14 @@ export interface Cow {
   standingHeatHoursLeft: number; // Kalan kızgınlık penceresi (saat)
   activityIndex: number;       // Pedometre aktivite endeksi (1.0 normal, 2.5-3.5 kızgınlık)
 
+  // Dijital İkiz (Digital Twin) & IoT Biyometrik Telemetrisi
+  milkConductivityMs?: number;    // Süt elektriksel iletkenliği (mS/cm: 4.8 - 5.5 normal, >6.2 mastitis)
+  rumenPh?: number;               // inSiliCow Rumen bolus pH değeri (normal: 6.2 - 6.8, <5.8 SARA asidoz)
+  reticulorumenTempC?: number;    // İç vücut bolus sensör sıcaklığı (°C: 38.6 - 39.2)
+  lyingHoursToday?: number;       // Yatış dinlenme süresi (saat/gün, normal: 11 - 14)
+  methaneGramsPerDay?: number;    // RuFaS enterik metan salımı (g CH4/inek/gün)
+  digitalTwinStatus?: 'optimal' | 'warning' | 'alert';
+
   events: CowEvent[];
 }
 
@@ -369,6 +377,9 @@ export interface FarmState {
 
   // Çiftlik Lojistiği, Biyogüvenlik & İnsan-Hayvan-Alet Hareketleri Sistemi
   logistics?: FarmLogisticsState;
+
+  // Dijital İkiz (Digital Twin), IoT Sensör Ağı, XAI Karar Destek & inSiliCow/RuFaS Motoru
+  digitalTwin?: DigitalTwinState;
 }
 
 // =============================================================================
@@ -675,4 +686,120 @@ export function formatDimensionValue(cm: number, unit: UnitSystem): string {
     return `${inches} in`;
   }
   return `${cm} cm`;
+}
+
+// =============================================================================
+// DİJİTAL İKİZ (DIGITAL TWIN), IoT TELEMETRİ & ICAR ADE SİSTEM TİPLERİ
+// =============================================================================
+
+export type SensorNodeType =
+  | 'thi_roof'              // Çatı makası sıcaklık-nem mikro-iklim sensörü
+  | 'nh3_ambient'           // Barınak amonyak ve CO2 hava kalitesi probu
+  | 'bunk_weight'           // Yemlik kantar yük hücresi (load-cell)
+  | 'collar_beacon'         // Boyun tasması radyo frekans telemetri baz istasyonu
+  | 'parlor_conductivity';  // Sağım robotu/parlör 4 çeyrek elektriksel iletkenlik modülü
+
+export interface IoTSensorNode {
+  id: string;
+  type: SensorNodeType;
+  labelTr: string;
+  location: [number, number, number]; // [x, y, z] 3D koordinatları
+  value: number;
+  unit: string;
+  status: 'online' | 'warning' | 'alert';
+  batteryPct: number;
+  lastPingSecondsAgo: number;
+}
+
+export type XAIConditionType =
+  | 'subclinical_mastitis'      // Subklinik Mastitis (Meme İltihabı)
+  | 'ruminal_acidosis_sara'     // SARA (Subakut Rumen Asidozu)
+  | 'early_lameness'            // Erken Topallık / Tırnak Lezyonu
+  | 'estrus_ovulation'          // Östrus / Optimum Tohumlama Penceresi
+  | 'heat_stress'               // Akut Isı Stresi
+  | 'ketosis_energy_deficit';   // Negatif Enerji Dengesi / Ketozis
+
+export interface XAIEvidenceItem {
+  metricTr: string;
+  currentValue: string;
+  normalRange: string;
+  deviationPct: number;
+}
+
+export interface XAIAlert {
+  id: string;
+  cowId: string;
+  cowTag: number;
+  condition: XAIConditionType;
+  conditionTr: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  confidencePct: number;        // Açıklanabilir model güven skoru (%70 - %98)
+  detectedAtDay: number;
+  detectedAtHour: number;
+  evidence: XAIEvidenceItem[];
+  explainableRationale: string; // TWIN4MILK XAI Mantığı (Örn: "Süt iletkenliğindeki %24 artış...")
+  recommendedAction: string;    // Proaktif veteriner ve sürü yönetim önerisi
+  sheddingGateTriggered: boolean;
+  status: 'active' | 'in_treatment' | 'resolved' | 'dismissed';
+}
+
+export interface SheddingGateState {
+  gatePosition: 'pass_through' | 'divert_to_pen';
+  mode: 'auto' | 'manual';
+  activeDivertingCowId: string | null;
+  divertTargetPen: 'quarantine_treatment' | 'maternity' | 'insemination_chute';
+  gateOpenProgress: number;     // 0.0 (kapalı) - 1.0 (tam açık)
+  lastSortTimestamp: string;
+  totalSortedToday: number;
+  separationLog: {
+    cowTag: number;
+    reasonTr: string;
+    targetPenTr: string;
+    hour: string;
+  }[];
+}
+
+export interface WhatIfScenarioState {
+  feedStarchDeltaPct: number;        // Nişasta değişimi % (-25% ile +25%)
+  feedProteinDeltaPct: number;       // Ham protein değişimi % (-20% ile +20%)
+  ambientTempOverrideC: number;      // Simüle dış ortam sıcaklığı (15°C - 42°C)
+  ventilationBoostActive: boolean;   // Otomatik fan & sisleme devreye girsin mi?
+  sheddingGateAutoActive: boolean;   // XAI tespitinde kapı otomatik ayırsın mı?
+  
+  // inSiliCow & RuFaS Simülasyon Çıktıları
+  projectedMilkYieldChangeL: number;
+  projectedRumenPh: number;
+  projectedEntericMethaneGrams: number;
+  projectedDailyFeedCostEuro: number;
+  projectedNetProfitDeltaEuro: number;
+  projectedDiseaseRiskReductionPct: number;
+}
+
+export interface IcarAdeRecord {
+  cowTag: number;
+  timestampIso: string;
+  activityStepsPerHour: number;
+  ruminationMinutes: number;
+  conductivityQuarterMs: [number, number, number, number];
+  milkYieldKg: number;
+  milkTempC: number;
+  bodyTempC: number;
+  rumenPh: number;
+}
+
+export interface DigitalTwinState {
+  isActive: boolean;
+  mode3DOverlay: boolean;            // 3D sahnede sensör ve termal mikroklima ısı haritası
+  ingestionRatePerMin: number;       // Saniyede işlenen telemetri paketi
+  lastSyncIso: string;
+  sensorNodes: IoTSensorNode[];
+  xaiAlerts: XAIAlert[];
+  sheddingGate: SheddingGateState;
+  whatIf: WhatIfScenarioState;
+  icarAde: {
+    exchangeStandard: 'ICAR ADE v1.4 (ISO 11787 / 17532)';
+    totalPacketsIngested: number;
+    totalPacketsExported: number;
+    liveStreamActive: boolean;
+  };
 }

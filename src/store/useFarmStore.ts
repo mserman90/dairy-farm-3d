@@ -8,6 +8,11 @@ import { resolveFarmEvent } from '../lib/sim/farmEvents';
 import { syncWithTosunPasaMaster, TosunPasaSyncSummary } from '../lib/sim/tosunPasaBridge';
 import { createInitialLogisticsState } from '../lib/sim/logistics';
 import {
+  createInitialDigitalTwinState,
+  computeWhatIfProjections,
+  generateIcarAdeJson,
+} from '../lib/sim/digitalTwin';
+import {
   Breed,
   Cow,
   DiseaseType,
@@ -20,6 +25,7 @@ import {
   UnitSystem,
   CurrencyCode,
   GraphicsQuality,
+  WhatIfScenarioState,
 } from '../lib/sim/types';
 import { synthAudio } from '../lib/audio/synthAudio';
 
@@ -36,7 +42,8 @@ export type ModalType =
   | 'settings'
   | 'reproWheel' // Tosun Paşa 283 Günlük İnek Çarkı Modalı
   | 'events'    // Çiftlik Olayları & Kriz Yönetim Modalı
-  | 'logistics'; // Biyogüvenlik, Lojistik & Çiftlik Hareketleri Modalı
+  | 'logistics' // Biyogüvenlik, Lojistik & Çiftlik Hareketleri Modalı
+  | 'digitalTwin'; // Dijital İkiz (Digital Twin), XAI & inSiliCow Modalı
 
 interface FarmStore {
   farm: FarmState;
@@ -126,6 +133,13 @@ interface FarmStore {
   exportSaveData: () => string;
   importSaveData: (json: string) => boolean;
   dismissNotification: (id: string) => void;
+
+  // Dijital İkiz (Digital Twin) & IoT Telemetri Aksiyonları
+  toggleDigitalTwinOverlayAction: () => void;
+  triggerSheddingGateAction: (cowId: string, targetPen: 'quarantine_treatment' | 'maternity' | 'insemination_chute', reasonTr: string) => void;
+  updateWhatIfScenarioAction: (updates: Partial<WhatIfScenarioState>) => void;
+  dismissXaiAlertAction: (alertId: string) => void;
+  exportIcarAdeAction: () => string;
 }
 
 const STORAGE_KEY = 'tosun_pasa_ciftligi_3d_save_v1';
@@ -178,6 +192,16 @@ function loadPersistedState(): FarmState {
             pipesFrozen: false,
             bulkTankFailure: false,
           };
+        }
+        if (!parsed.digitalTwin) {
+          parsed.digitalTwin = createInitialDigitalTwinState();
+        } else {
+          if (!parsed.digitalTwin.sensorNodes || parsed.digitalTwin.sensorNodes.length === 0) {
+            parsed.digitalTwin = createInitialDigitalTwinState();
+          }
+          if (!parsed.digitalTwin.whatIf) parsed.digitalTwin.whatIf = createInitialDigitalTwinState().whatIf;
+          if (!parsed.digitalTwin.sheddingGate) parsed.digitalTwin.sheddingGate = createInitialDigitalTwinState().sheddingGate;
+          if (!parsed.digitalTwin.icarAde) parsed.digitalTwin.icarAde = createInitialDigitalTwinState().icarAde;
         }
         parsed.cows.forEach((c: any) => {
           if (c.udderFillPct === undefined) c.udderFillPct = c.state === 'lactating' ? 60 : 0;
@@ -1056,6 +1080,119 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
         },
       };
     });
+  },
+
+  // Dijital İkiz (Digital Twin) & IoT Telemetri Aksiyonları
+  toggleDigitalTwinOverlayAction: () => {
+    synthAudio.playClick();
+    set((state) => {
+      const twin = state.farm.digitalTwin || createInitialDigitalTwinState();
+      return {
+        farm: {
+          ...state.farm,
+          digitalTwin: {
+            ...twin,
+            mode3DOverlay: !twin.mode3DOverlay,
+          },
+        },
+      };
+    });
+  },
+
+  triggerSheddingGateAction: (cowId: string, targetPen: 'quarantine_treatment' | 'maternity' | 'insemination_chute', reasonTr: string) => {
+    synthAudio.playClick();
+    set((state) => {
+      const twin = state.farm.digitalTwin || createInitialDigitalTwinState();
+      const cow = state.farm.cows.find((c) => c.id === cowId);
+      const tag = cow ? cow.tagNumber : 999;
+      const targetPenTr = targetPen === 'quarantine_treatment' ? 'Veteriner & Tedavi Bölmesi' : targetPen === 'maternity' ? 'Doğumhane & Yakın Takip' : 'Suni Tohumlama Travayı';
+
+      const newLogItem = {
+        cowTag: tag,
+        reasonTr,
+        targetPenTr,
+        hour: `${Math.floor(state.farm.hour).toString().padStart(2, '0')}:00`,
+      };
+
+      const updatedAlerts = twin.xaiAlerts.map((a) =>
+        a.cowId === cowId ? { ...a, sheddingGateTriggered: true, status: 'in_treatment' as const } : a
+      );
+
+      return {
+        farm: {
+          ...state.farm,
+          digitalTwin: {
+            ...twin,
+            xaiAlerts: updatedAlerts,
+            sheddingGate: {
+              ...twin.sheddingGate,
+              gatePosition: 'divert_to_pen',
+              activeDivertingCowId: cowId,
+              divertTargetPen: targetPen,
+              gateOpenProgress: 1.0,
+              totalSortedToday: twin.sheddingGate.totalSortedToday + 1,
+              lastSortTimestamp: `Bugün ${newLogItem.hour}`,
+              separationLog: [newLogItem, ...twin.sheddingGate.separationLog].slice(0, 15),
+            },
+          },
+        },
+      };
+    });
+  },
+
+  updateWhatIfScenarioAction: (updates: Partial<WhatIfScenarioState>) => {
+    set((state) => {
+      const twin = state.farm.digitalTwin || createInitialDigitalTwinState();
+      const merged = { ...twin.whatIf, ...updates };
+      const recomputed = computeWhatIfProjections(merged, state.farm.cows, state.farm.thiIndex);
+      return {
+        farm: {
+          ...state.farm,
+          digitalTwin: {
+            ...twin,
+            whatIf: recomputed,
+          },
+        },
+      };
+    });
+  },
+
+  dismissXaiAlertAction: (alertId: string) => {
+    synthAudio.playClick();
+    set((state) => {
+      const twin = state.farm.digitalTwin || createInitialDigitalTwinState();
+      return {
+        farm: {
+          ...state.farm,
+          digitalTwin: {
+            ...twin,
+            xaiAlerts: twin.xaiAlerts.filter((a) => a.id !== alertId),
+          },
+        },
+      };
+    });
+  },
+
+  exportIcarAdeAction: () => {
+    synthAudio.playCashChime();
+    const current = get().farm;
+    const json = generateIcarAdeJson(current.cows, current);
+    set((state) => {
+      const twin = state.farm.digitalTwin || createInitialDigitalTwinState();
+      return {
+        farm: {
+          ...state.farm,
+          digitalTwin: {
+            ...twin,
+            icarAde: {
+              ...twin.icarAde,
+              totalPacketsExported: twin.icarAde.totalPacketsExported + 1,
+            },
+          },
+        },
+      };
+    });
+    return json;
   },
 
   syncWithTosunPasaAction: (explicitDb?: any) => {

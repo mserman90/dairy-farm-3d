@@ -7,6 +7,7 @@ import { Cow, FarmState, FeedId, FinancialRecord, NotificationItem, getCircadian
 import { generateDailyWeather, getSeasonForDay } from './weather';
 import { evaluateFarmEvents } from './farmEvents';
 import { createInitialLogisticsState, tickLogisticsSimulation } from './logistics';
+import { createInitialDigitalTwinState, tickDigitalTwinSimulation } from './digitalTwin';
 
 export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 'normal'): FarmState {
   const startingCash = difficulty === 'easy' ? 120000 : difficulty === 'normal' ? 65000 : 25000;
@@ -447,6 +448,7 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       bulkTankFailure: false,
     },
     logistics: createInitialLogisticsState(),
+    digitalTwin: createInitialDigitalTwinState(),
   };
 }
 
@@ -475,6 +477,10 @@ export function tickFarmSimulation(
   // 0. Çiftlik Lojistiği, İnsan-Hayvan-Alet Hareketleri Simülasyonu
   const currentLogistics = next.logistics || createInitialLogisticsState();
   next.logistics = tickLogisticsSimulation(currentLogistics, deltaSeconds * state.gameSpeed);
+
+  // 0.1 Dijital İkiz (Digital Twin), IoT Sensör Ağı & XAI Karar Destek Simülasyonu
+  const currentTwin = next.digitalTwin || createInitialDigitalTwinState();
+  next.digitalTwin = tickDigitalTwinSimulation(currentTwin, next, deltaSeconds * state.gameSpeed);
 
   // 1. Sirkadiyen Ritm & Günün Evresi
   const phaseInfo = getCircadianPhase(next.hour);
