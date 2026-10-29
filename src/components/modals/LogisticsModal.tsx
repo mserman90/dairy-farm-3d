@@ -409,108 +409,177 @@ export const LogisticsModal: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 3: ALET & EKİPMAN LOJİSTİĞİ */}
+          {/* TAB 3: ALET & EKİPMAN LOJİSTİĞİ (ZOOTEKNİK & BİYOLOJİK DÖNGÜLER) */}
           {activeTab === 'equipment' && (
             <div className="space-y-6 animate-fadeIn">
+              {/* Zooteknik Biyoloji & Refah Kartı */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-3">
                 <Truck className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
                 <div className="text-xs space-y-1">
                   <div className="font-bold text-sky-300">
-                    Mekanizasyon & Temizlik Ekipman Güzergâhları
+                    Zooteknik, Biyolojik & Mekanik Hareket Döngüleri
                   </div>
-                  <div className="text-slate-300">
-                    Traktör, yem karma vagonu, koridor sıyırıcıları, buzağı süt taksisi ve süt toplama araçlarının rotası temiz üretim alanlarını kirletmeyecek şekilde planlanır.
+                  <div className="text-slate-300 leading-relaxed">
+                    Süt sığırları günün 12–14 saatini duraklarda geviş getirerek geçirir. Her 1 L süt için memeye 400–500 L kan pompalanır ve yatarken bu akış %30 artar. Bu nedenle traktör ve ekipmanlar 24 saat kesintisiz çalışmaz; yalnızca biyolojik besleme (sağım sonrası sfinkter kapanma penceresi) ve planlı temizlik seanslarında devreye girer.
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Yem Dağıtım Traktörü */}
+                {/* 1. Yem Dağıtım Traktörü & TMR Mikser Vagon */}
                 <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
                   <div className="flex items-center justify-between text-sm font-bold text-slate-200">
                     <span>🚜 TMR Yem Karma & Dağıtım Traktörü</span>
-                    {log?.equipment.tmrMixerRunning ? (
-                      <span className="text-xs text-amber-400 animate-pulse">
-                        Yem Yolu Seyrinde (%{Math.round(log.equipment.tmrMixerProgress)})
+                    {log?.equipment.tmrState === 'mixing' ? (
+                      <span className="text-xs px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-700 animate-pulse font-bold">
+                        🟡 Silaj Ambarında Miksaj (%{Math.round(log.equipment.tmrMixerProgress)})
+                      </span>
+                    ) : log?.equipment.tmrState === 'feeding' ? (
+                      <span className="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700 animate-pulse font-bold">
+                        🟢 Yem Dağıtım Seyrinde (%{Math.round(log.equipment.tmrMixerProgress)})
+                      </span>
+                    ) : log?.equipment.tmrState === 'returning' ? (
+                      <span className="text-xs px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-700 font-bold">
+                        🔵 Ambara Dönüş Seyri
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-400">Park Halinde</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        ⚪ Park Halinde (Ahır Sakin)
+                      </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400">
-                    Silaj ambarından yüklenen homojen rasyonu yem yoluna serer.
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    <strong>Biyolojik Zamanlama:</strong> Sağım sonrası taze rasyon ikmali (07:00 & 17:00). İnekleri ayakta tutarak sağımdan yeni çıkmış meme sfinkterlerinin yataklıkla temasını ve mastitisi önler.
                   </p>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/60 p-2.5 rounded border border-slate-800">
+                    <div>
+                      <span className="text-slate-400">Sonraki Planlı Sefer:</span>{' '}
+                      <strong className="text-amber-400 font-mono">
+                        {log?.equipment.nextTmrFeedingHour ? `${log.equipment.nextTmrFeedingHour.toFixed(1)}:00` : '07:00'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Yemlik Doluluğu:</span>{' '}
+                      <strong className="text-emerald-400 font-mono">
+                        %{Math.round(log?.equipment.feedTableBunkLevelPct || 85)}
+                      </strong>
+                    </div>
+                  </div>
                   <button
                     onClick={() => toggleTmrMixerAction()}
                     className={`w-full py-2.5 px-4 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition ${
-                      log?.equipment.tmrMixerRunning
+                      log?.equipment.tmrState === 'feeding' || log?.equipment.tmrState === 'mixing'
                         ? 'bg-rose-600 hover:bg-rose-500 text-white'
                         : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
                     }`}
                   >
-                    {log?.equipment.tmrMixerRunning ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    {log?.equipment.tmrMixerRunning ? 'Traktörü Durdur' : 'Yem Dağıtım Seferini Başlat'}
+                    {log?.equipment.tmrState === 'feeding' || log?.equipment.tmrState === 'mixing' ? (
+                      <Square className="w-4 h-4" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                    {log?.equipment.tmrState === 'feeding' || log?.equipment.tmrState === 'mixing'
+                      ? 'Traktörü Durdur / Park Et'
+                      : 'Ekstra TMR Dağıtım Seferini Başlat'}
                   </button>
                 </div>
 
-                {/* Otomatik Çift Koridor Gübre Sıyırıcıları */}
+                {/* 2. Otomatik Çift Koridor Gübre Sıyırıcıları */}
                 <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
                   <div className="flex items-center justify-between text-sm font-bold text-slate-200">
-                    <span>🧹 Çift Koridor Otomatik Gübre Sıyırıcıları (Kuzey & Güney)</span>
-                    <span className="text-xs text-emerald-400 font-mono">
-                      {Math.round(log?.equipment.manureScraperPos || 0)} / 32m
-                    </span>
+                    <span>🧹 Çift Koridor Otomatik Gübre Sıyırıcıları</span>
+                    {log?.equipment.scraperState === 'scraping' ? (
+                      <span className="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700 animate-pulse font-bold">
+                        🟢 Sıyırma Seyrinde ({Math.round(log.equipment.manureScraperPos)}/32m)
+                      </span>
+                    ) : log?.equipment.scraperState === 'returning' ? (
+                      <span className="text-xs px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-700 font-bold">
+                        🔵 Katlı Kanat Geri Dönüş
+                      </span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        ⚪ Bekleme Modunda (Standby)
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-400">
-                    <strong>Uluslararası Yön Kuralı:</strong> Temiz Doğu ucundan (x = +6) başlayarak gübreyi Batıdaki enine tahliye ızgarasına (x = -27) ve lagüne doğru iter. Dönüşte V-kanatları içe katlanır.
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    <strong>Zooteknik Güvenlik:</strong> Günde 5 planlı seans (05:30, 09:30, 13:30, 17:30, 21:30). 22:30–05:00 arası gece dinlenme kilidiyle uyuyan ineklerin tırnak ve bacak sağlığı korunur.
                   </p>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded border border-slate-800">
-                    <span>Hareket Yönü: <strong className="text-emerald-400">Temiz ➔ Kirli / Lagün</strong></span>
-                    <span>Hız: <strong className="text-slate-200">3.0 m/dk (Hayvan Güvenli)</strong></span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/60 p-2.5 rounded border border-slate-800">
+                    <div>
+                      <span className="text-slate-400">Sonraki Temizlik:</span>{' '}
+                      <strong className="text-sky-400 font-mono">
+                        {log?.equipment.nextScraperCycleHour ? `${log.equipment.nextScraperCycleHour.toFixed(1)}:00` : '09:30'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Gece Koruma Kilidi:</span>{' '}
+                      <strong className={log?.equipment.nightRestSafetyActive ? 'text-amber-400 font-bold' : 'text-slate-400'}>
+                        {log?.equipment.nightRestSafetyActive ? '🔒 Aktif (Dinlenme)' : 'Standby'}
+                      </strong>
+                    </div>
                   </div>
                   <button
-                    onClick={() => toggleManureScraperAction(!log?.equipment.manureScraperRunning)}
+                    onClick={() => toggleManureScraperAction(log?.equipment.scraperState === 'idle')}
                     className="w-full py-2.5 px-4 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    {log?.equipment.manureScraperRunning ? 'Sıyırıcıyı Duraklat' : 'Sıyırıcıyı Çalıştır'}
+                    {log?.equipment.scraperState === 'scraping' ? 'Sıyırıcı Seansını Duraklat' : 'Manuel Sıyırıcı Seansı Başlat'}
                   </button>
                 </div>
 
-                {/* Biyogüvenlik Ayak Banyosu */}
+                {/* 3. Buzağı Süt Taksisi */}
                 <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
-                  <div className="text-sm font-bold text-emerald-400">
-                    🧴 Çiftlik Ayak Banyosu (Bakır Sülfat / Formalin)
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Sağım çıkışında ineklerin tırnak enfeksiyonlarından korunmasını ve ahır giriş dezenfeksiyonunu sağlar.
-                  </p>
-                  <button
-                    onClick={() => refreshFootbathAction()}
-                    className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-emerald-950"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Dezenfektan Solüsyonunu Yenile
-                  </button>
-                </div>
-
-                {/* Gübre Lagünü Doluluk */}
-                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
-                  <div className="flex justify-between items-center text-sm font-bold text-slate-200">
-                    <span>🛢️ Gübre Çukuru & Atık Havuzu</span>
-                    <span className="text-xs text-amber-400 font-bold">
-                      %{Math.round(log?.equipment.manurePitLevelPct || 35)} Dolu
+                  <div className="flex items-center justify-between text-sm font-bold text-slate-200">
+                    <span>🍼 Mobil Buzağı Süt Taksisi (Milk Taxi)</span>
+                    <span className={`text-xs px-2 py-0.5 rounded font-bold ${
+                      log?.equipment.calfMilkTaxiActive
+                        ? 'bg-purple-950 text-purple-300 border border-purple-700 animate-pulse'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}>
+                      {log?.equipment.calfMilkTaxiActive ? 'Besleme Aktif (%100)' : 'Park Halinde'}
                     </span>
                   </div>
-                  <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
-                    <div
-                      className="h-full bg-amber-600 transition-all duration-300"
-                      style={{ width: `${Math.round(log?.equipment.manurePitLevelPct || 35)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Temiz üretim alanlarından uzakta, çiftlik rüzgâr altı yönünde konumlanmıştır.
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Süt mutfağından 38.5°C pastörize süt veya kolostrum alarak buzağı kulübelerine (iglolarına) servis yapar.
                   </p>
+                  <div className="text-[11px] bg-slate-900/60 p-2.5 rounded border border-slate-800 flex justify-between">
+                    <span>Biyolojik Besleme Saatleri:</span>
+                    <strong className="text-purple-300 font-mono">07:15 & 17:15 (Günde 2 Öğün)</strong>
+                  </div>
+                </div>
+
+                {/* 4. Süt Toplama Tankeri & Lagün */}
+                <div className="p-5 rounded-xl bg-slate-800/40 border border-slate-700 space-y-3">
+                  <div className="flex justify-between items-center text-sm font-bold text-slate-200">
+                    <span>🚛 Fabrika Süt Tankeri & Lagün</span>
+                    <span className={`text-xs px-2 py-0.5 rounded font-bold ${
+                      log?.equipment.milkTankerConnected
+                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-700 animate-pulse'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}>
+                      {log?.equipment.milkTankerConnected ? 'Rampada Bağlı' : 'Yolda (20:00)'}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs text-slate-300">
+                      <span>Gübre Lagünü Seviyesi:</span>
+                      <strong className="text-amber-400 font-mono">%{Math.round(log?.equipment.manurePitLevelPct || 35)}</strong>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                      <div
+                        className="h-full bg-amber-600 transition-all duration-300"
+                        style={{ width: `${Math.round(log?.equipment.manurePitLevelPct || 35)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => refreshFootbathAction()}
+                    className="w-full py-2 px-3 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Ayak Banyosu Dezenfektanını Yenile
+                  </button>
                 </div>
               </div>
             </div>

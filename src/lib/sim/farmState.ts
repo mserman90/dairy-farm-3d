@@ -476,7 +476,7 @@ export function tickFarmSimulation(
 
   // 0. Çiftlik Lojistiği, İnsan-Hayvan-Alet Hareketleri Simülasyonu
   const currentLogistics = next.logistics || createInitialLogisticsState();
-  next.logistics = tickLogisticsSimulation(currentLogistics, deltaSeconds * state.gameSpeed);
+  next.logistics = tickLogisticsSimulation(currentLogistics, deltaSeconds * state.gameSpeed, next.hour, notifications);
 
   // 0.1 Dijital İkiz (Digital Twin), IoT Sensör Ağı & XAI Karar Destek Simülasyonu
   const currentTwin = next.digitalTwin || createInitialDigitalTwinState();
@@ -598,10 +598,12 @@ export function tickFarmSimulation(
         cow.position[2] = -11 + (Math.random() - 0.5) * 3;
         cow.rotationY = -Math.PI / 2 + (Math.random() - 0.5) * 0.4;
       } else if (
-        (next.hour >= 7.5 && next.hour <= 10.0) ||
-        (next.hour >= 16.5 && next.hour <= 18.0)
+        next.logistics?.equipment.tmrState === 'feeding' ||
+        next.logistics?.animal.feedLineRushActive ||
+        (next.hour >= 7.0 && next.hour <= 9.0) ||
+        (next.hour >= 16.75 && next.hour <= 18.25)
       ) {
-        // Yemlik hattı boyunca dizilip taze TMR yeme
+        // Traktör taze TMR döktüğünde veya besleme saatinde: Yemlik hattı boyunca dizilip taze TMR yeme
         cow.behaviorState = 'eating';
         cow.position[0] = -14 + ((cow.tagNumber * 3) % 24);
         cow.position[2] = 2.5 + (Math.random() - 0.5) * 0.6;

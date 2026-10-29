@@ -462,13 +462,37 @@ export interface AnimalMovementState {
   }>;
 }
 
+export type TractorOperationalState = 'parked' | 'mixing' | 'feeding' | 'returning';
+export type ScraperOperationalState = 'idle' | 'scraping' | 'returning';
+
 export interface EquipmentMovementState {
+  // 1. TMR Karma & Dağıtım Traktörü (Zootechnical Feeding Circuit)
   tmrMixerRunning: boolean;
-  tmrMixerProgress: number;
+  tmrMixerProgress: number; // 0..100% rota ilerlemesi
+  tmrState: TractorOperationalState; // 'parked' | 'mixing' | 'feeding' | 'returning'
+  tmrScheduleMode: 'auto_circadian' | 'manual'; // Zooteknik otomatik sirkadiyen mi / manuel mi
+  nextTmrFeedingHour: number; // Bir sonraki yem dağıtım saati (örn: 7.0 veya 17.0)
+  lastFeedDeliveredHour: number; // Son yem döküm saati
+  feedTableBunkLevelPct: number; // Yemlik doluluk seviyesi (%0-%100)
+
+  // 2. Çift Koridor Otomatik Gübre Sıyırıcıları (Biosecurity Alley Scrapers)
   manureScraperRunning: boolean;
-  manureScraperPos: number;
+  manureScraperPos: number; // 0..32 metre
+  scraperState: ScraperOperationalState; // 'idle' | 'scraping' | 'returning'
+  nextScraperCycleHour: number; // Bir sonraki sıyırma saati (örn: 5.5, 9.5, 13.5, 17.5, 21.5)
+  scraperCyclesCompletedToday: number;
+  nightRestSafetyActive: boolean; // 22:30 - 05:00 arası inekleri rahatsız etmeme güvenlik kilidi
+
+  // 3. Süt Fabrikası Tankeri (Collection Tanker)
   milkTankerConnected: boolean;
+  milkTankerStatus: 'absent' | 'arriving' | 'pumping' | 'departed';
+
+  // 4. Buzağı Süt Taksisi (Calf Milk Taxi)
   calfMilkTaxiActive: boolean;
+  calfMilkTaxiProgress: number; // 0..100%
+  nextCalfFeedingHour: number; // Sabah 07:15, Akşam 17:15
+
+  // 5. Diğer Hijyen & Atık Altyapısı
   pressureWasherActive: boolean;
   footbathCopperSulfateFresh: boolean;
   manurePitLevelPct: number;

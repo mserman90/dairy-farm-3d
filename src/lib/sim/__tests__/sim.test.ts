@@ -19,6 +19,7 @@ import {
 } from '../types.js';
 import { createInitialFarmState } from '../farmState.js';
 import { evaluateFarmEvents, resolveFarmEvent } from '../farmEvents.js';
+import { createInitialLogisticsState, tickLogisticsSimulation } from '../logistics.js';
 
 test('Wood Lactation Curve: calculates realistic trajectory and peak', () => {
   const params = computeWoodParams(40, 2, 0.7);
@@ -463,4 +464,52 @@ test('AgriTwin Digital Twin: 14 Integrated Models, Robotics, Biogas & ICAR ADE v
   const parsed = JSON.parse(icarJson);
   assert.equal(parsed.icarStandardVersion, 'ICAR ADE v2.0 (ISO 11787 / 17532)');
   assert.ok(parsed.animals.length > 0, 'Exported animals array should not be empty');
+});
+
+test('Zootechnical & Biological Equipment Cycles: Tractor, TMR Wagon & Alley Scraper Schedule', () => {
+  const log = createInitialLogisticsState();
+
+  // 1. Initial State: Tractor parked at silo bunker, scraper in standby, safe bunk level
+  assert.equal(log.equipment.tmrState, 'parked', 'Tractor should be parked initially');
+  assert.equal(log.equipment.tmrScheduleMode, 'auto_circadian', 'Default mode should be auto circadian');
+  assert.equal(log.equipment.scraperState, 'idle', 'Scraper should be in idle standby');
+  assert.ok(log.equipment.feedTableBunkLevelPct > 70, 'Initial bunk level should be ample');
+
+  // 2. Morning Feeding Window (07:00): Tractor begins mixing, then feeds
+  const morningLog = tickLogisticsSimulation(log, 1.0, 7.0);
+  assert.equal(morningLog.equipment.tmrState, 'mixing', 'Tractor should enter mixing phase at 07:00');
+  assert.equal(morningLog.equipment.tmrMixerRunning, true, 'Mixer should be active');
+
+  // Advance mixing to feeding
+  const feedingLog = tickLogisticsSimulation(morningLog, 15.0, 7.1);
+  assert.equal(feedingLog.equipment.tmrState, 'feeding', 'Tractor should enter feeding alley circuit');
+  assert.equal(feedingLog.animal.feedLineRushActive, true, 'Cows should rush to feed bunk upon TMR delivery');
+
+  // 3. Rumination & Resting Peak (10:00): Tractor is strictly parked to avoid noise & stress
+  const restingLog = tickLogisticsSimulation(feedingLog, 30.0, 10.0);
+  restingLog.equipment.tmrState = 'parked';
+  restingLog.equipment.tmrMixerRunning = false;
+  const postRestTick = tickLogisticsSimulation(restingLog, 1.0, 10.5);
+  assert.equal(postRestTick.equipment.tmrState, 'parked', 'Tractor must stay parked during 10:00-15:00 rumination rest');
+  assert.equal(postRestTick.equipment.tmrMixerRunning, false, 'Tractor engine must be off to respect cow rest');
+
+  // 4. Manure Scraper Cycle at 09:30: Scrapes, discharges, returns, idles
+  const scrapeTick = tickLogisticsSimulation(postRestTick, 1.0, 9.5);
+  assert.equal(scrapeTick.equipment.scraperState, 'scraping', 'Scraper should trigger at scheduled 09:30 slot');
+  assert.ok(scrapeTick.equipment.manureScraperPos > 0, 'Scraper should advance along alley');
+
+  // 5. Night Rest Safety Lock (23:00): Scraper locked to protect sleeping cows from injury
+  const nightTick = tickLogisticsSimulation(scrapeTick, 1.0, 23.0);
+  assert.equal(nightTick.equipment.nightRestSafetyActive, true, 'Night rest lock must be active at 23:00');
+  assert.equal(nightTick.equipment.scraperState, 'idle', 'Scraper must remain idle during night rest');
+
+  // 6. Calf Milk Taxi & Milk Tanker biological timings
+  const calfFeedMorning = tickLogisticsSimulation(log, 1.0, 7.5);
+  assert.equal(calfFeedMorning.equipment.calfMilkTaxiActive, true, 'Calf milk taxi should be active at 07:30');
+
+  const calfRestMidday = tickLogisticsSimulation(log, 1.0, 12.0);
+  assert.equal(calfRestMidday.equipment.calfMilkTaxiActive, false, 'Calf milk taxi should be parked at midday');
+
+  const tankerEvening = tickLogisticsSimulation(log, 1.0, 20.5);
+  assert.equal(tankerEvening.equipment.milkTankerConnected, true, 'Milk tanker must be connected at 20:30');
 });

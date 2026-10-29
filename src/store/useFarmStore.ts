@@ -758,12 +758,24 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
 
   toggleManureScraperAction: (active: boolean) => {
     synthAudio.playClick();
-    set((state) => ({
-      farm: {
-        ...state.farm,
-        facilities: { ...state.farm.facilities, manureScraperActive: active },
-      },
-    }));
+    set((state) => {
+      const log = state.farm.logistics || createInitialLogisticsState();
+      return {
+        farm: {
+          ...state.farm,
+          facilities: { ...state.farm.facilities, manureScraperActive: active },
+          logistics: {
+            ...log,
+            equipment: {
+              ...log.equipment,
+              manureScraperRunning: active,
+              scraperState: active ? 'scraping' : 'idle',
+              manureScraperPos: active ? log.equipment.manureScraperPos : 0,
+            },
+          },
+        },
+      };
+    });
   },
 
   expandBarnAction: () => {
@@ -1008,7 +1020,7 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
     synthAudio.playTractorEngineSound();
     set((state) => {
       const log = state.farm.logistics || createInitialLogisticsState();
-      const isRunning = !log.equipment.tmrMixerRunning;
+      const isRunning = log.equipment.tmrState !== 'feeding' && log.equipment.tmrState !== 'mixing';
       return {
         farm: {
           ...state.farm,
@@ -1017,7 +1029,9 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
             equipment: {
               ...log.equipment,
               tmrMixerRunning: isRunning,
-              tmrMixerProgress: isRunning ? 5 : 0,
+              tmrState: isRunning ? 'mixing' : 'parked',
+              tmrMixerProgress: 0,
+              tmrScheduleMode: 'manual',
             },
           },
         },

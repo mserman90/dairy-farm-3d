@@ -451,24 +451,30 @@ export const Farm3DCanvas: React.FC = () => {
         }
       }
 
-      // Animate Manure Scrapers (Moving strictly from Clean East End towards West Drop Pit & Lagoon)
-      const isScraperRunning = currentFarmState.logistics?.equipment.manureScraperRunning !== false;
-      if (scraperMeshRef.current && isScraperRunning) {
-        const cycleDuration = 32; // 32-second total cycle (slow, realistic animal-safe scraping speed)
-        const progress = (time % cycleDuration) / cycleDuration; // 0.0 to 1.0
+      // =========================================================================
+      // 1. Animate Manure Scrapers (Zooteknik Hayvan-Güvenli Koridor Sıyırma Döngüsü)
+      // =========================================================================
+      const eqState = currentFarmState.logistics?.equipment;
+      const scraperState = eqState?.scraperState || 'idle';
+      const scraperPos = eqState?.manureScraperPos || 0;
 
-        let posX: number;
-        let isScraping: boolean;
+      if (scraperMeshRef.current) {
+        let posX = 5.5; // Temiz Doğu park noktası
+        let isScraping = false;
 
-        if (progress < 0.58) {
-          // Scraping Stroke: From Clean End (x = 5.5) towards West Discharge Drop Pit (x = -26.5)
-          const t = progress / 0.58;
-          posX = 5.5 + t * (-26.5 - 5.5);
+        if (scraperState === 'scraping') {
+          // Temiz Doğu ucundan (x = 5.5) Batı deşarj ızgarasına (x = -26.5) doğru ilerleme
+          const frac = Math.min(1.0, Math.max(0.0, scraperPos / 32));
+          posX = 5.5 + frac * (-26.5 - 5.5);
           isScraping = true;
+        } else if (scraperState === 'returning') {
+          // Batı ucundan Doğu park ucuna kanatlar katlı geri dönüş
+          const frac = Math.min(1.0, Math.max(0.0, scraperPos / 32));
+          posX = 5.5 + frac * (-26.5 - 5.5);
+          isScraping = false;
         } else {
-          // Return Stroke: From Drop Pit (x = -26.5) back to Clean End (x = 5.5) with wings collapsed
-          const t = (progress - 0.58) / 0.42;
-          posX = -26.5 + t * (5.5 - (-26.5));
+          // IDLE (Bekleme / Dinlenme): Doğu temiz uçta park halinde
+          posX = 5.5;
           isScraping = false;
         }
 
@@ -477,38 +483,54 @@ export const Farm3DCanvas: React.FC = () => {
           if (scraper) {
             scraper.position.x = posX;
 
-            // Wing angles: open when scraping forward (pushing manure), folded when returning
-            const targetWingAngle = isScraping ? 0.42 : 0.09;
+            // Kanat açıları: İterken açık (0.42 rad), dönerken veya boşta katlı (0.06 rad)
+            const targetWingAngle = isScraping ? 0.42 : 0.06;
             const wingL = scraper.getObjectByName('wing_l');
             const wingR = scraper.getObjectByName('wing_r');
             const manure = scraper.getObjectByName('manure_pile');
 
             if (wingL && wingR) {
-              wingL.rotation.y = targetWingAngle;
-              wingR.rotation.y = -targetWingAngle;
+              wingL.rotation.y = THREE.MathUtils.lerp(wingL.rotation.y, targetWingAngle, 0.1);
+              wingR.rotation.y = THREE.MathUtils.lerp(wingR.rotation.y, -targetWingAngle, 0.1);
             }
 
             if (manure) {
               manure.visible = isScraping;
-              // Accumulate manure volume as it advances towards the drop pit
-              const progressFraction = Math.max(0.1, (5.5 - posX) / 32);
-              manure.scale.set(0.6 + progressFraction * 0.6, 1, 0.7 + progressFraction * 0.5);
+              if (isScraping) {
+                const progressFraction = Math.max(0.1, (5.5 - posX) / 32);
+                manure.scale.set(0.6 + progressFraction * 0.6, 1, 0.7 + progressFraction * 0.5);
+              }
             }
           }
         });
       }
 
-      // Animate Tractor & TMR Mixer Wagon along Central Feed Alley (Catmull-Rom kesintisiz pürüzsüz seyir)
+      // =========================================================================
+      // 2. Animate Tractor & TMR Mixer Wagon (Zooteknik Yem Dağıtım & Karma Döngüsü)
+      // =========================================================================
       if (tractorTruckRef.current) {
-        const isTmrRunning = currentFarmState.logistics?.equipment.tmrMixerRunning !== false;
+        const tmrState = eqState?.tmrState || 'parked';
+        const tmrProgress = eqState?.tmrMixerProgress || 0;
+        const parkPos = new THREE.Vector3(14, 0.32, 10); // Silaj ambarı önü park noktası
 
-        if (isTmrRunning) {
-          const loopDuration = 48; // 48 saniyelik pürüzsüz ve gerçekçi yem dağıtım turu
-          const u = (time % loopDuration) / loopDuration;
+        const auger = tractorTruckRef.current.getObjectByName('mixer_auger');
+        const feedStream = tractorTruckRef.current.getObjectByName('feed_stream');
+        const hood = tractorTruckRef.current.getObjectByName('tractor_hood');
+
+        if (tmrState === 'mixing') {
+          // Silaj ambarı önünde yükleme & dikey helezonla karıştırma fazı
+          tractorTruckRef.current.position.lerp(parkPos, 0.1);
+          tractorTruckRef.current.rotation.y = -0.6;
+          if (auger) auger.rotation.y += 18 * delta; // Yüksek devirli miksaj
+          if (feedStream) feedStream.visible = false;
+          if (hood) hood.position.y = 1.2 + Math.sin(time * 35) * 0.007; // Rölanti titreşimi
+        } else if (tmrState === 'feeding' || tmrState === 'returning') {
+          // Ahır içi merkezi yem yolunda (Catmull-Rom pürüzsüz güzergâhında seyir)
+          const u = Math.min(1.0, Math.max(0.0, tmrProgress / 100));
           const pos = feedRouteCurve.getPointAt(u);
           tractorTruckRef.current.position.copy(pos);
 
-          // Sürüş yönüne doğru pürüzsüz yönelme (Heading)
+          // Seyir yönüne göre pürüzsüz yönelme
           const tangent = feedRouteCurve.getTangentAt(u).normalize();
           if (tangent.lengthSq() > 0.001) {
             const targetYaw = Math.atan2(tangent.x, tangent.z);
@@ -519,41 +541,61 @@ export const Farm3DCanvas: React.FC = () => {
             tractorTruckRef.current.rotation.y += diff * 0.25;
           }
 
-          // Dikey helezon karıştırıcının dönüşü
-          const auger = tractorTruckRef.current.getObjectByName('mixer_auger');
-          if (auger) {
-            auger.rotation.y += 15 * delta;
-          }
-
-          // Traktör ve mikser tekerleklerinin aks boyunca dönmesi
+          // Tekerleklerin aks boyunca dönmesi
           tractorTruckRef.current.traverse((child) => {
             if (child.name.includes('wheel')) {
               child.rotation.x += 14 * delta;
             }
           });
 
-          // Canlı yem döküm akışı (Ahır içindeyken yemlik kilitlerine taze TMR akışı)
-          const feedStream = tractorTruckRef.current.getObjectByName('feed_stream');
+          // Dikey mikser helezonu
+          if (auger) auger.rotation.y += 12 * delta;
+
+          // Ahır içindeyken yemlik kilitlerine taze TMR dökümü
           if (feedStream) {
-            feedStream.visible = pos.x >= -25 && pos.x <= 8.5;
+            feedStream.visible = tmrState === 'feeding' && pos.x >= -25 && pos.x <= 8.5;
             if (feedStream.visible) {
               feedStream.scale.y = 0.85 + Math.sin(time * 25) * 0.15;
             }
           }
 
-          // Motor rölanti mikro-titreşimi
-          const hood = tractorTruckRef.current.getObjectByName('tractor_hood');
-          if (hood) {
-            hood.position.y = 1.2 + Math.sin(time * 35) * 0.008;
-          }
+          if (hood) hood.position.y = 1.2 + Math.sin(time * 40) * 0.008;
         } else {
-          // Park Halinde (Silaj ambarı önü)
-          const parkPos = new THREE.Vector3(14, 0.32, 10);
+          // PARK HALİNDE (Dinlenme / Geviş Getirme Saatleri):
+          // Traktör motoru kapalıdır, inekler sessiz ortamda dinlenir
           tractorTruckRef.current.position.lerp(parkPos, 0.08);
           tractorTruckRef.current.rotation.y = -0.6;
-          const feedStream = tractorTruckRef.current.getObjectByName('feed_stream');
           if (feedStream) feedStream.visible = false;
+          if (hood) hood.position.y = 1.2;
         }
+      }
+
+      // =========================================================================
+      // 3. Animate Milk Taxi (Buzağı Süt Taksisi - Sabah 07:15 & Akşam 17:15)
+      // =========================================================================
+      if (milkTaxiRef.current) {
+        const isTaxiActive = eqState?.calfMilkTaxiActive || false;
+        const taxiProg = eqState?.calfMilkTaxiProgress || 0;
+
+        if (isTaxiActive) {
+          // Buzağı igloları hattında seyreder (x: 22 -> 27, z: -18)
+          const targetX = 22 + (taxiProg / 100) * 5.0;
+          milkTaxiRef.current.position.x = THREE.MathUtils.lerp(milkTaxiRef.current.position.x, targetX, 0.1);
+          milkTaxiRef.current.position.z = -18;
+          milkTaxiRef.current.rotation.y = 0;
+        } else {
+          // Park pozisyonu (Süt mutfağı yanı)
+          milkTaxiRef.current.position.x = THREE.MathUtils.lerp(milkTaxiRef.current.position.x, 21.5, 0.08);
+          milkTaxiRef.current.position.z = -18;
+        }
+      }
+
+      // =========================================================================
+      // 4. Animate Milk Tanker Connection (Süt Fabrikası Tankeri - Akşam 20:00)
+      // =========================================================================
+      if (tankerTruckRef.current) {
+        const isTankerConnected = eqState?.milkTankerConnected || false;
+        tankerTruckRef.current.visible = isTankerConnected || (currentFarmState.hour >= 19.8 && currentFarmState.hour <= 21.8);
       }
 
       // -------------------------------------------------------------
