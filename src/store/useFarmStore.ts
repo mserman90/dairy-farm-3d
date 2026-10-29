@@ -164,6 +164,15 @@ function loadPersistedState(): FarmState {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.version && parsed.cows) {
+        if (parsed.cows.length < 20) {
+          const existingIds = new Set(parsed.cows.map((c: any) => c.id));
+          base.cows.forEach((bc) => {
+            if (!existingIds.has(bc.id) && parsed.cows.length < 20) {
+              parsed.cows.push(bc);
+              existingIds.add(bc.id);
+            }
+          });
+        }
         parsed.farmName = 'Tosunpaşa Çiftliği';
         if (parsed.circadianPhase === undefined) parsed.circadianPhase = 'morning_milking';
         if (parsed.bulkTankLiters === undefined) parsed.bulkTankLiters = 120;

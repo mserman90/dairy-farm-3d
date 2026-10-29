@@ -254,7 +254,16 @@ export function syncWithTosunPasaMaster(
   });
 
   // Eğer master db'de hiç hayvan yoksa mevcut 3D inekleri koru
-  const finalCows = mergedCows.length > 0 ? mergedCows : currentFarm.cows;
+  let finalCows = mergedCows.length > 0 ? [...mergedCows] : [...currentFarm.cows];
+  if (finalCows.length < 20 && currentFarm.cows.length >= 20) {
+    const existingTags = new Set(finalCows.map((c) => c.tagNumber));
+    currentFarm.cows.forEach((c) => {
+      if (!existingTags.has(c.tagNumber) && finalCows.length < 20) {
+        finalCows.push(c);
+        existingTags.add(c.tagNumber);
+      }
+    });
+  }
 
   // 2. Rasyon Entegrasyonu (Zooteknist Rasyon Rehberi'nden)
   let updatedRation: RationItem[] = currentFarm.activeRation;

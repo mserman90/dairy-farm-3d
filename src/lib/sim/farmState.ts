@@ -274,8 +274,8 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
     },
   ];
 
-  // 12 inek daha ekleyerek 17'ye tamamla
-  const additionalNames = ['Alina', 'Clara', 'Dora', 'Emma', 'Gemma', 'Klara', 'Sindy', 'Narin', 'Ceren', 'Bahar', 'Gülizar', 'Yıldız'];
+  // 15 inek daha ekleyerek tam 20 ineğe tamamla (Kullanıcı talebi: inek sayısı 20)
+  const additionalNames = ['Alina', 'Clara', 'Dora', 'Emma', 'Gemma', 'Klara', 'Sindy', 'Narin', 'Ceren', 'Bahar', 'Gülizar', 'Yıldız', 'Maral', 'Defne', 'Beste'];
   const breedsList = ['holstein', 'jersey', 'simmental', 'brown_swiss'];
 
   additionalNames.forEach((name, idx) => {
@@ -326,7 +326,7 @@ export function createInitialFarmState(difficulty: 'easy' | 'normal' | 'hard' = 
       inbreedingCoeff: 0.0,
       genomicTested: false,
       genomicYieldPotential: 1.06 + (idx % 3) * 0.03,
-      position: [-14 + (idx % 4) * 6, 0, -10 + Math.floor(idx / 4) * 8],
+      position: [-21 + (idx % 5) * 4.8, 0, idx < 5 ? -6.8 : (idx < 10 ? 6.8 : (idx % 2 === 0 ? -3.2 : 3.2))],
       rotationY: Math.random() * Math.PI * 2,
       behaviorState: 'resting',
       behaviorTimer: 30,
