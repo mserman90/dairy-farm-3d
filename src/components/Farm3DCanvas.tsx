@@ -68,6 +68,13 @@ export const Farm3DCanvas: React.FC = () => {
   const sheddingGateRef = useRef<THREE.Group | null>(null);
   const junoRobotRef = useRef<THREE.Group | null>(null);
   const discoveryRobotRef = useRef<THREE.Group | null>(null);
+  const cowBrushesRef = useRef<{ group: THREE.Group; roller: THREE.Mesh; mountZ: number; isNorth: boolean }[]>([]);
+  const waterSurfacesRef = useRef<THREE.Mesh[]>([]);
+  const mistParticlesRef = useRef<THREE.Points | null>(null);
+  const bulkTankAgitatorRef = useRef<THREE.Group | null>(null);
+  const biogasFlareRef = useRef<THREE.Mesh | null>(null);
+  const chpMotorRef = useRef<THREE.Mesh | null>(null);
+  const footbathLiquidRef = useRef<THREE.Mesh | null>(null);
   const weatherParticlesRef = useRef<THREE.Points | null>(null);
   const lightsRef = useRef<{
     sun: THREE.DirectionalLight;
@@ -138,7 +145,12 @@ export const Farm3DCanvas: React.FC = () => {
     };
 
     // Build Static Farm Environment
-    buildFarmEnvironment(scene, fanBladesRef, tankerTruckRef, tractorTruckRef);
+    buildFarmEnvironment(scene, fanBladesRef, tankerTruckRef, tractorTruckRef, {
+      cowBrushesRef,
+      waterSurfacesRef,
+      mistParticlesRef,
+      bulkTankAgitatorRef,
+    });
 
     // Build Biosecurity Structures & Movement Overlays
     buildBiosecurityStructures(scene, scraperMeshRef, milkTaxiRef);
@@ -147,7 +159,7 @@ export const Farm3DCanvas: React.FC = () => {
 
     // Build Digital Twin IoT Sensor Probes & Smart Shedding Gate
     buildDigitalTwinObjects(scene, digitalTwinGroupRef, sheddingGateRef);
-    buildAgriTwinFacilityAndRobots(scene, junoRobotRef, discoveryRobotRef);
+    buildAgriTwinFacilityAndRobots(scene, junoRobotRef, discoveryRobotRef, biogasFlareRef, chpMotorRef);
 
     // Mouse and Keyboard Controls
     let isMouseDown = false;
@@ -329,11 +341,76 @@ export const Farm3DCanvas: React.FC = () => {
       camera.position.copy(cameraCurrentPos.current);
       camera.lookAt(cameraTargetRef.current);
 
-      // Spin ceiling ventilation fans if active
+      // 1. Sirkülasyon Fanları (THI ve Isı Stresine Göre Dinamik RPM)
       if (fanBladesRef.current.length > 0) {
+        const isHot = (currentFarmState.digitalTwin?.whatIf?.ambientTempOverrideC || 23) > 24;
+        const fanSpeed = isHot ? 28 : 14;
         fanBladesRef.current.forEach((fan) => {
-          fan.rotation.y += 12 * delta;
+          fan.rotation.y += fanSpeed * delta;
         });
+      }
+
+      // 2. Çift Döner Kaşıma Fırçası (İnek Temas Algılama & Sallanır Mafsal Fiziği)
+      if (cowBrushesRef.current && cowBrushesRef.current.length > 0) {
+        cowBrushesRef.current.forEach((brush) => {
+          // İnek yakınlık kontrolü (Maksimum 1.85m algılama menzili)
+          let minCowDist = 999;
+          cowMeshesRef.current.forEach((cowGroup) => {
+            const dx = cowGroup.position.x - -10;
+            const dz = cowGroup.position.z - brush.mountZ;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < minCowDist) minCowDist = dist;
+          });
+
+          if (minCowDist < 1.85) {
+            // İnek kaşınıyor: Yüksek devirli fırça dönüşü ve temas reaksiyonu
+            brush.roller.rotation.y += 26 * delta;
+            brush.group.rotation.z = Math.sin(time * 6) * 0.24;
+            (brush.roller.material as THREE.MeshStandardMaterial).color.setHex(0xfacc15);
+          } else {
+            // Rölanti: Yavaşça durulma ve dik konuma dönme
+            brush.roller.rotation.y += 1.2 * delta;
+            brush.group.rotation.z *= 0.94;
+            (brush.roller.material as THREE.MeshStandardMaterial).color.setHex(0xeab308);
+          }
+        });
+      }
+
+      // 3. Yemlik Sisleme ve Evaporatif Soğutma Parçacıkları
+      if (mistParticlesRef.current) {
+        const isMistingActive = (currentFarmState.digitalTwin?.whatIf?.ambientTempOverrideC || 23) > 23;
+        mistParticlesRef.current.visible = isMistingActive;
+        if (isMistingActive) {
+          const positions = mistParticlesRef.current.geometry.attributes.position.array as Float32Array;
+          for (let i = 0; i < positions.length; i += 3) {
+            positions[i + 1] -= 0.6 * delta; // Aşağı doğru süzülme
+            if (positions[i + 1] < 0.6) {
+              positions[i + 1] = 2.4; // Yeniden nozul seviyesine çıkış
+            }
+          }
+          mistParticlesRef.current.geometry.attributes.position.needsUpdate = true;
+        }
+      }
+
+      // 4. Devrilir Suluklar & Sıvı Yüzey Dalgalanması
+      if (waterSurfacesRef.current && waterSurfacesRef.current.length > 0) {
+        waterSurfacesRef.current.forEach((water, wIdx) => {
+          water.position.y = 0.15 + Math.sin(time * 3 + wIdx * 1.5) * 0.006;
+        });
+      }
+
+      // 5. Süt Soğutma Tankı Otomatik Karıştırıcı (Agitator) Dönüşü
+      if (bulkTankAgitatorRef.current) {
+        bulkTankAgitatorRef.current.rotation.y += 7 * delta;
+      }
+
+      // 6. Biyogaz Pilot Meşalesi ve Kojenerasyon Titreşimi
+      if (biogasFlareRef.current) {
+        biogasFlareRef.current.scale.y = 0.9 + Math.sin(time * 16) * 0.25;
+        biogasFlareRef.current.scale.x = 0.9 + Math.cos(time * 14) * 0.2;
+      }
+      if (chpMotorRef.current) {
+        chpMotorRef.current.position.y = 1.4 + Math.sin(time * 46) * 0.005;
       }
 
       // Animate Cows (breathing, tail swishing, chewing)
@@ -1087,7 +1164,13 @@ function buildFarmEnvironment(
   scene: THREE.Scene,
   fanBladesRef: React.MutableRefObject<THREE.Group[]>,
   tankerTruckRef: React.MutableRefObject<THREE.Group | null>,
-  tractorTruckRef?: React.MutableRefObject<THREE.Group | null>
+  tractorTruckRef?: React.MutableRefObject<THREE.Group | null>,
+  deviceRefs?: {
+    cowBrushesRef: React.MutableRefObject<{ group: THREE.Group; roller: THREE.Mesh; mountZ: number; isNorth: boolean }[]>;
+    waterSurfacesRef: React.MutableRefObject<THREE.Mesh[]>;
+    mistParticlesRef: React.MutableRefObject<THREE.Points | null>;
+    bulkTankAgitatorRef: React.MutableRefObject<THREE.Group | null>;
+  }
 ): void {
   // 1. Terrain Ground
   const terrainGeo = new THREE.PlaneGeometry(240, 240, 32, 32);
@@ -1289,10 +1372,13 @@ function buildFarmEnvironment(
     basin.castShadow = true;
     troughGroup.add(basin);
 
-    // Water level
+    // Water level (Gerçekçi dinamik su yüzeyi)
     const water = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.08, 0.48), waterMat);
     water.position.y = 0.15;
     troughGroup.add(water);
+    if (deviceRefs?.waterSurfacesRef) {
+      deviceRefs.waterSurfacesRef.current.push(water);
+    }
 
     // Overhead protective guard pipe
     const guard = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.1, 8), headlockMat);
@@ -1303,26 +1389,92 @@ function buildFarmEnvironment(
     scene.add(troughGroup);
   });
 
-  // 2.4 Automatic Oscillating Cow Brush (Döner Kaşıma Fırçası - EU Welfare Directive 98/58/EC)
-  const brushGroup = new THREE.Group();
-  brushGroup.position.set(-10, 2.1, 3.8);
+  // 2.4 Dual Automatic Oscillating Cow Brushes (Kuzey & Güney Döner Kaşıma Fırçaları - DeLaval Standard)
+  const brushRollerMat = new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.85, metalness: 0.1 });
+  const brushMotorMat = new THREE.MeshStandardMaterial({ color: '#0284c7', roughness: 0.4, metalness: 0.6 });
 
-  const mountArm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.8), headlockMat);
-  mountArm.position.z = -0.4;
-  brushGroup.add(mountArm);
+  [
+    { bx: -10, bz: -3.8, isNorth: true },
+    { bx: -10, bz: 3.8, isNorth: false }
+  ].forEach(({ bx, bz, isNorth }) => {
+    const mainGroup = new THREE.Group();
+    mainGroup.position.set(bx, 2.2, bz);
 
-  const motorHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.35, 12), pipeMat);
-  motorHousing.position.z = -0.8;
-  brushGroup.add(motorHousing);
+    // Fixed Overhead Bracket to Barn Post
+    const mountArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.9), headlockMat);
+    mountArm.position.z = isNorth ? 0.45 : -0.45;
+    mainGroup.add(mountArm);
 
-  const brushRollerMat = new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.9 });
-  const brushRoller = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.75, 16), brushRollerMat);
-  brushRoller.position.set(0, -0.45, -0.8);
-  brushRoller.rotation.x = 0.18;
-  brushRoller.castShadow = true;
-  brushGroup.add(brushRoller);
+    // Universal Joint / Swivel Head (Sallanır Mafsal)
+    const swivelGroup = new THREE.Group();
+    swivelGroup.position.set(0, 0, isNorth ? 0.9 : -0.9);
 
-  scene.add(brushGroup);
+    // High-Torque Electric Motor Housing
+    const motorHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.38, 12), brushMotorMat);
+    swivelGroup.add(motorHousing);
+
+    // Cylindrical Bristle Roller (Döner Fırça Tamburu)
+    const brushRoller = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.82, 16), brushRollerMat);
+    brushRoller.position.set(0, -0.52, 0);
+    brushRoller.rotation.x = isNorth ? -0.15 : 0.15;
+    brushRoller.castShadow = true;
+    swivelGroup.add(brushRoller);
+
+    mainGroup.add(swivelGroup);
+    scene.add(mainGroup);
+
+    if (deviceRefs?.cowBrushesRef) {
+      deviceRefs.cowBrushesRef.current.push({
+        group: swivelGroup,
+        roller: brushRoller,
+        mountZ: bz,
+        isNorth,
+      });
+    }
+  });
+
+  // 2.5 High-Pressure Misting & Evaporative Cooling Line (Yemlik Üstü Sisleme Hattı)
+  [-2.45, 2.45].forEach((mz) => {
+    const mistPipe = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 32, 8),
+      new THREE.MeshStandardMaterial({ color: '#e2e8f0', metalness: 0.9, roughness: 0.2 })
+    );
+    mistPipe.rotateZ(Math.PI / 2);
+    mistPipe.position.set(-10, 2.45, mz);
+    scene.add(mistPipe);
+
+    // Brass misting nozzles every 2.4 meters
+    for (let nx = -24; nx <= 4; nx += 2.4) {
+      const nozzle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.015, 0.015, 0.08, 6),
+        new THREE.MeshStandardMaterial({ color: '#f59e0b', metalness: 0.9 })
+      );
+      nozzle.position.set(nx, 2.41, mz);
+      scene.add(nozzle);
+    }
+  });
+
+  // Misting Water Particle Cloud
+  const mistCount = 120;
+  const mistGeo = new THREE.BufferGeometry();
+  const mistPos = new Float32Array(mistCount * 3);
+  for (let i = 0; i < mistCount; i++) {
+    mistPos[i * 3] = -24 + Math.random() * 28;
+    mistPos[i * 3 + 1] = 1.2 + Math.random() * 1.2;
+    mistPos[i * 3 + 2] = Math.random() > 0.5 ? 2.45 + (Math.random() - 0.5) * 0.4 : -2.45 + (Math.random() - 0.5) * 0.4;
+  }
+  mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPos, 3));
+  const mistMat = new THREE.PointsMaterial({
+    color: '#bae6fd',
+    size: 0.12,
+    transparent: true,
+    opacity: 0.65,
+  });
+  const mistPoints = new THREE.Points(mistGeo, mistMat);
+  scene.add(mistPoints);
+  if (deviceRefs?.mistParticlesRef) {
+    deviceRefs.mistParticlesRef.current = mistPoints;
+  }
 
   // 3. Milking Parlor & Bulk Tank Building
   const parlorGeo = new THREE.BoxGeometry(16, 5.5, 12);
@@ -1333,13 +1485,86 @@ function buildFarmEnvironment(
   parlorBuilding.receiveShadow = true;
   scene.add(parlorBuilding);
 
-  // Exterior Bulk Milk Storage Tank (Silver Cylinder)
-  const milkTankGeo = new THREE.CylinderGeometry(1.8, 1.8, 5.2, 16);
-  const tankMat = new THREE.MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.2, metalness: 0.85 });
+  // 3.0 Modern Bulk Milk Tank with Automated Agitator & CIP Sanitation Unit
+  const bulkTankGroup = new THREE.Group();
+  bulkTankGroup.position.set(-22, 2.6, -14);
+
+  // Horizontal Stainless Steel Tank Body (316L Food-Grade Stainless)
+  const milkTankGeo = new THREE.CylinderGeometry(1.8, 1.8, 5.2, 24);
+  milkTankGeo.rotateZ(Math.PI / 2);
+  const tankMat = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.15, metalness: 0.95 });
   const milkTank = new THREE.Mesh(milkTankGeo, tankMat);
-  milkTank.position.set(-22, 2.6, -14);
   milkTank.castShadow = true;
-  scene.add(milkTank);
+  bulkTankGroup.add(milkTank);
+
+  // Tank Support Cradles
+  [-1.6, 1.6].forEach((cx) => {
+    const cradle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 1.4, 3.8),
+      new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.7 })
+    );
+    cradle.position.set(cx, -1.0, 0);
+    bulkTankGroup.add(cradle);
+  });
+
+  // Top Agitator Motor Gearbox (Süt Yağı Homojenizasyon Karıştırıcı Motoru)
+  const agitatorGroup = new THREE.Group();
+  agitatorGroup.position.set(0, 1.9, 0);
+
+  const agitatorMotor = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.25, 0.25, 0.45, 12),
+    new THREE.MeshStandardMaterial({ color: '#0284c7', metalness: 0.7, roughness: 0.3 })
+  );
+  agitatorGroup.add(agitatorMotor);
+
+  // Agitator spinning shaft blades (inside tank access port)
+  const agitatorBlades = new THREE.Group();
+  for (let ab = 0; ab < 3; ab++) {
+    const bMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.04, 0.12),
+      new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.9 })
+    );
+    bMesh.rotation.y = (ab * Math.PI * 2) / 3;
+    agitatorBlades.add(bMesh);
+  }
+  agitatorGroup.add(agitatorBlades);
+  bulkTankGroup.add(agitatorGroup);
+  if (deviceRefs?.bulkTankAgitatorRef) {
+    deviceRefs.bulkTankAgitatorRef.current = agitatorBlades;
+  }
+
+  // Digital Temperature Controller Display (3.8°C Target)
+  const displayBox = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.4, 0.6),
+    new THREE.MeshStandardMaterial({ color: '#0f172a' })
+  );
+  displayBox.position.set(2.65, 0.2, 0);
+  bulkTankGroup.add(displayBox);
+
+  const displayScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.48, 0.28),
+    new THREE.MeshBasicMaterial({ color: '#0284c7' })
+  );
+  displayScreen.rotateY(Math.PI / 2);
+  displayScreen.position.set(2.72, 0.2, 0);
+  bulkTankGroup.add(displayScreen);
+
+  // Automated CIP (Clean-In-Place) Wash Unit with Status LED
+  const cipUnit = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 1.2, 0.6),
+    new THREE.MeshStandardMaterial({ color: '#059669', roughness: 0.4 })
+  );
+  cipUnit.position.set(2.2, -0.6, 1.4);
+  bulkTankGroup.add(cipUnit);
+
+  const cipLed = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 8, 8),
+    new THREE.MeshStandardMaterial({ color: '#10b981', emissive: '#10b981', emissiveIntensity: 1.0 })
+  );
+  cipLed.position.set(2.62, -0.2, 1.4);
+  bulkTankGroup.add(cipLed);
+
+  scene.add(bulkTankGroup);
 
   // 3.1 Dairy Processing Milk Tanker Truck (Arrives at 20:00 - 22:00)
   const tankerGroup = new THREE.Group();
@@ -1416,6 +1641,29 @@ function buildFarmEnvironment(
     const siloCap = new THREE.Mesh(siloCapGeo, new THREE.MeshStandardMaterial({ color: '#334155' }));
     siloCap.position.set(sx, 15.2, 18);
     siloCap.castShadow = true;
+
+    // Conical Bottom Hopper
+    const hopper = new THREE.Mesh(new THREE.ConeGeometry(2.4, 2.2, 16), siloMat);
+    hopper.rotation.x = Math.PI;
+    hopper.position.set(sx, -0.2, 18);
+    scene.add(hopper);
+
+    // Motorized Conveyor Transfer Auger Pipe (Helezon Borusu)
+    const augerPipe = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, 8.5, 8),
+      new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.7 })
+    );
+    augerPipe.rotation.z = Math.PI / 4;
+    augerPipe.position.set(sx + 3.0, 1.8, 18);
+    scene.add(augerPipe);
+
+    // Electric Drive Motor on Auger Head
+    const augerMotor = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 0.4, 8),
+      new THREE.MeshStandardMaterial({ color: '#0284c7' })
+    );
+    augerMotor.position.set(sx + 6.0, 4.6, 18);
+    scene.add(augerMotor);
 
     scene.add(siloBody, siloCap);
   });
@@ -2070,7 +2318,9 @@ function buildDigitalTwinObjects(
 function buildAgriTwinFacilityAndRobots(
   scene: THREE.Scene,
   junoRobotRef: React.MutableRefObject<THREE.Group | null>,
-  discoveryRobotRef: React.MutableRefObject<THREE.Group | null>
+  discoveryRobotRef: React.MutableRefObject<THREE.Group | null>,
+  biogasFlareRef?: React.MutableRefObject<THREE.Mesh | null>,
+  chpMotorRef?: React.MutableRefObject<THREE.Mesh | null>
 ): void {
   // 1. BIOGAS ANAEROBIC DIGESTER DOME & 60 kW CHP GENERATOR
   const biogasGroup = new THREE.Group();
@@ -2116,6 +2366,15 @@ function buildAgriTwinFacilityAndRobots(
   const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.5, 12), pipeMat);
   stack.position.set(6.5, 3.8, 0);
   biogasGroup.add(stack);
+
+  // Animated Safety Gas Flare Pilot (Otomatik Emniyet Meşalesi)
+  const flareGeo = new THREE.ConeGeometry(0.28, 0.9, 8);
+  const flareMat = new THREE.MeshBasicMaterial({ color: '#f97316' });
+  const flareMesh = new THREE.Mesh(flareGeo, flareMat);
+  flareMesh.position.set(0, 5.8, 0);
+  biogasGroup.add(flareMesh);
+  if (biogasFlareRef) biogasFlareRef.current = flareMesh;
+  if (chpMotorRef) chpMotorRef.current = chpBuilding;
 
   // Status LED Beacon on CHP
   const chpLed = new THREE.Mesh(
