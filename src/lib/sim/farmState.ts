@@ -791,6 +791,10 @@ export function tickFarmSimulation(
     next.morningMilkingDone = false;
     next.eveningMilkingDone = false;
     next.dailyTankerArrived = false;
+    if (next.logistics?.equipment) {
+      next.logistics.equipment.scraperCyclesCompletedToday = 0;
+      next.logistics.equipment.lastFeedDeliveredHour = -1;
+    }
 
     next.season = getSeasonForDay(next.day);
     const dailyWeather = generateDailyWeather(next.day, next.season);

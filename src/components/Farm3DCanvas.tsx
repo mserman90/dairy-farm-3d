@@ -413,7 +413,9 @@ export const Farm3DCanvas: React.FC = () => {
         chpMotorRef.current.position.y = 1.4 + Math.sin(time * 46) * 0.005;
       }
 
-      // Animate Cows (breathing, tail swishing, chewing)
+      // Animate Cows (breathing, tail swishing, zooteknik geviş & çiğneme senkronizasyonu)
+      const isTmrDeliveringNow = currentFarmState.logistics?.equipment.tmrState === 'feeding';
+      const isRuminationPhase = currentFarmState.circadianPhase === 'rumination_rest';
       cowMeshesRef.current.forEach((cowGroup) => {
         const tail = cowGroup.getObjectByName('cow_tail');
         if (tail) {
@@ -423,7 +425,13 @@ export const Farm3DCanvas: React.FC = () => {
         if (head) {
           const isEating = cowGroup.userData?.behavior === 'eating' || cowGroup.userData?.behavior === 'grazing';
           if (isEating) {
-            head.rotation.x = 0.45 + Math.sin(time * 5) * 0.08; // Chewing bob
+            // Traktör taze TMR dökerken ineklerin yem tüketim uyarımı ve hızlı çiğneme refleksi
+            const chewSpeed = isTmrDeliveringNow ? 7.2 : 5.0;
+            const chewAmp = isTmrDeliveringNow ? 0.12 : 0.08;
+            head.rotation.x = 0.50 + Math.sin(time * chewSpeed) * chewAmp;
+          } else if (isRuminationPhase || cowGroup.userData?.behavior === 'resting') {
+            // Doğal durakta geviş getirme ritmi: dakikada ~55 çene hareketi (0.9 Hz)
+            head.rotation.x = 0.16 + Math.sin(time * 2.2) * 0.04;
           } else {
             head.rotation.x = Math.sin(time * 1.5) * 0.04;
           }
@@ -606,92 +614,106 @@ export const Farm3DCanvas: React.FC = () => {
         const skirt = juno.getObjectByName('juno_skirt');
         const beacon = juno.getObjectByName('juno_beacon') as THREE.Mesh;
 
-        // Path cycle: 2-sided feed bunk route (West along South bunk z=1.55, East along North bunk z=-1.55)
-        const cycleDuration = 38;
-        const progress = (time * 0.6) % cycleDuration;
-        const halfCycle = cycleDuration / 2;
+        // Biyolojik & Mekanik Görev Döngüsü: Yem itme seyri -> Doğu şarj istasyonunda (x: 4.2, z: 1.6) dinlenme
+        const cycleDuration = 54;
+        const progress = (time * 0.55) % cycleDuration;
+        const activeRunTime = 38; // 38s aktif yem itme, 16s şarj terminalinde bekleme
 
-        let targetX = -24;
-        let baseZ = 1.55;
-        let headingAngle = Math.PI;
+        let targetX = 4.2;
+        let baseZ = 1.6;
+        let headingAngle = 0;
+        let isDocked = false;
 
-        if (progress < halfCycle - 2) {
+        if (progress < 16) {
           // 1. Bacak: Güney yemlik hattında batıya doğru ilerle (x: 4 -> -24, z: 1.55)
-          const tLeg = progress / (halfCycle - 2);
+          const tLeg = progress / 16;
           targetX = 4 - tLeg * 28;
           baseZ = 1.55;
           headingAngle = Math.PI; // Batı yönü
-        } else if (progress < halfCycle) {
+        } else if (progress < 19) {
           // Batı apeksinde yumuşak U dönüşü
-          const tTurn = (progress - (halfCycle - 2)) / 2;
+          const tTurn = (progress - 16) / 3;
           targetX = -24 - Math.sin(tTurn * Math.PI) * 1.5;
           baseZ = 1.55 - tTurn * 3.1;
           headingAngle = Math.PI - tTurn * Math.PI;
-        } else if (progress < cycleDuration - 2) {
+        } else if (progress < 35) {
           // 2. Bacak: Kuzey yemlik hattında doğuya doğru ilerle (x: -24 -> 4, z: -1.55)
-          const tLeg = (progress - halfCycle) / (halfCycle - 2);
+          const tLeg = (progress - 19) / 16;
           targetX = -24 + tLeg * 28;
           baseZ = -1.55;
           headingAngle = 0; // Doğu yönü
+        } else if (progress < activeRunTime) {
+          // Doğu endüktif şarj istasyonuna yanaşma manevrası
+          const tDock = (progress - 35) / (activeRunTime - 35);
+          targetX = 4 + tDock * 0.2;
+          baseZ = -1.55 + tDock * 3.15;
+          headingAngle = tDock * Math.PI * 2;
         } else {
-          // Doğu apeksinde yumuşak U dönüşü
-          const tTurn = (progress - (cycleDuration - 2)) / 2;
-          targetX = 4 + Math.sin(tTurn * Math.PI) * 1.5;
-          baseZ = -1.55 + tTurn * 3.1;
-          headingAngle = tTurn * Math.PI;
+          // DOCKED ŞARJ FAZI: İstasyonunda batarya şarjı, etek hareketsiz, yeşil nabız
+          targetX = 4.2;
+          baseZ = 1.6;
+          headingAngle = 0;
+          isDocked = true;
         }
 
-        // Aktif ineklerle mesafe kontrolü (LiDAR ve ultrasonik sensör kalkanı)
-        let minCowDistance = 999;
-        let nearestCowPos: THREE.Vector3 | null = null;
-
-        cowMeshesRef.current.forEach((cowGroup) => {
-          const dx = cowGroup.position.x - targetX;
-          const dz = cowGroup.position.z - baseZ;
-          const dist = Math.sqrt(dx * dx + dz * dz);
-          if (dist < minCowDistance) {
-            minCowDistance = dist;
-            nearestCowPos = cowGroup.position;
+        if (isDocked) {
+          juno.position.x = THREE.MathUtils.lerp(juno.position.x, 4.2, 0.15);
+          juno.position.z = THREE.MathUtils.lerp(juno.position.z, 1.6, 0.15);
+          juno.rotation.y = THREE.MathUtils.lerp(juno.rotation.y, 0, 0.15);
+          if (skirt) skirt.rotation.y = 0;
+          if (beacon) {
+            (beacon.material as THREE.MeshStandardMaterial).color.setHex(0x22c55e);
+            (beacon.material as THREE.MeshStandardMaterial).emissive.setHex(0x22c55e);
+            (beacon.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.35 + Math.sin(time * 3) * 0.35;
           }
-        });
+        } else {
+          // Aktif sürüşte LiDAR ve ultrasonik engelden kaçınma
+          let minCowDistance = 999;
+          let nearestCowPos: THREE.Vector3 | null = null;
 
-        // Çarpışma Önleme ve Otonom Engel Kaçınma:
-        // Eğer bir inek 2.6 metreden daha yakınsa, robot yem yolunun merkezine (z=0) doğru manevra yapar
-        let finalZ = baseZ;
-        let isEmergencyStop = false;
+          cowMeshesRef.current.forEach((cowGroup) => {
+            const dx = cowGroup.position.x - targetX;
+            const dz = cowGroup.position.z - baseZ;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < minCowDistance) {
+              minCowDistance = dist;
+              nearestCowPos = cowGroup.position;
+            }
+          });
 
-        if (minCowDistance < 2.6 && nearestCowPos) {
-          const overlap = 2.6 - minCowDistance;
-          // İnekten güvenli uzaklaş: yem yolunun merkezine (z: 0) doğru kır
-          if (baseZ > 0) {
-            finalZ = Math.max(0.1, baseZ - overlap * 0.95);
+          let finalZ = baseZ;
+          let isEmergencyStop = false;
+
+          if (minCowDistance < 2.6 && nearestCowPos) {
+            const overlap = 2.6 - minCowDistance;
+            if (baseZ > 0) {
+              finalZ = Math.max(0.1, baseZ - overlap * 0.95);
+            } else {
+              finalZ = Math.min(-0.1, baseZ + overlap * 0.95);
+            }
+            if (minCowDistance < 1.15) {
+              isEmergencyStop = true;
+            }
+          }
+
+          if (!isEmergencyStop) {
+            juno.position.x = THREE.MathUtils.lerp(juno.position.x, targetX, 0.15);
+            juno.position.z = THREE.MathUtils.lerp(juno.position.z, finalZ, 0.15);
+            juno.rotation.y = THREE.MathUtils.lerp(juno.rotation.y, headingAngle, 0.12);
+            if (skirt) skirt.rotation.y += 6 * delta;
+            if (beacon) {
+              const isWarn = minCowDistance < 2.6;
+              (beacon.material as THREE.MeshStandardMaterial).color.setHex(isWarn ? 0xf59e0b : 0x22c55e);
+              (beacon.material as THREE.MeshStandardMaterial).emissive.setHex(isWarn ? 0xf59e0b : 0x22c55e);
+              (beacon.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.8;
+            }
           } else {
-            finalZ = Math.min(-0.1, baseZ + overlap * 0.95);
-          }
-
-          // Eğer doğrudan rota üzerinde 1.15m içine girmiş bir inek varsa acil duruş yap
-          if (minCowDistance < 1.15) {
-            isEmergencyStop = true;
-          }
-        }
-
-        if (!isEmergencyStop) {
-          juno.position.x = THREE.MathUtils.lerp(juno.position.x, targetX, 0.15);
-          juno.position.z = THREE.MathUtils.lerp(juno.position.z, finalZ, 0.15);
-          juno.rotation.y = THREE.MathUtils.lerp(juno.rotation.y, headingAngle, 0.12);
-          if (skirt) skirt.rotation.y += 6 * delta;
-          if (beacon) {
-            const isWarn = minCowDistance < 2.6;
-            (beacon.material as THREE.MeshStandardMaterial).color.setHex(isWarn ? 0xf59e0b : 0x22c55e);
-            (beacon.material as THREE.MeshStandardMaterial).emissive.setHex(isWarn ? 0xf59e0b : 0x22c55e);
-          }
-        } else {
-          // İnek çok yakın: Robot durur ve tepe ikaz lambası yanıp söner
-          if (skirt) skirt.rotation.y += 1 * delta;
-          if (beacon) {
-            const isFlash = Math.floor(time * 4) % 2 === 0;
-            (beacon.material as THREE.MeshStandardMaterial).color.setHex(isFlash ? 0xef4444 : 0x000000);
-            (beacon.material as THREE.MeshStandardMaterial).emissive.setHex(isFlash ? 0xef4444 : 0x000000);
+            if (skirt) skirt.rotation.y += 1 * delta;
+            if (beacon) {
+              const isFlash = Math.floor(time * 4) % 2 === 0;
+              (beacon.material as THREE.MeshStandardMaterial).color.setHex(isFlash ? 0xef4444 : 0x000000);
+              (beacon.material as THREE.MeshStandardMaterial).emissive.setHex(isFlash ? 0xef4444 : 0x000000);
+            }
           }
         }
       }
@@ -703,39 +725,82 @@ export const Farm3DCanvas: React.FC = () => {
         const vac = discoveryRobotRef.current;
         const vacBeacon = vac.getObjectByName('vac_beacon') as THREE.Mesh;
 
-        // Koridor sıyırma rotası: Kuzey gübre yolu (z: -3.8) ve Güney gübre yolu (z: 3.8)
-        const vacCycle = 44;
-        const vProg = (time * 0.42) % vacCycle;
-        const isNorthLeg = vProg < vacCycle / 2;
-        const tWalk = isNorthLeg ? vProg / (vacCycle / 2) : (vProg - vacCycle / 2) / (vacCycle / 2);
+        // Koridor sıyırma rotası: Kuzey gübre yolu (z: -3.8) -> Güney gübre yolu (z: 3.8) -> Doğu Deşarj/Şarj İstasyonu
+        const vacCycle = 56;
+        const vProg = (time * 0.38) % vacCycle;
+        const vacActiveTime = 42; // 42s aktif sıyırma, 14s deşarj ve dinlenme
 
-        const vacTargetX = isNorthLeg ? 2 - tWalk * 27 : -25 + tWalk * 27;
-        const vacLaneZ = isNorthLeg ? -3.8 : 3.8;
-        const vacHeading = isNorthLeg ? Math.PI : 0;
+        let vacTargetX = 2.2;
+        let vacLaneZ = -3.8;
+        let vacHeading = 0;
+        let isVacDocked = false;
 
-        // Gübre yolunda inek mesafesi denetimi
-        let vacNearestCowDist = 999;
-        cowMeshesRef.current.forEach((cowGroup) => {
-          const dx = cowGroup.position.x - vac.position.x;
-          const dz = cowGroup.position.z - vacLaneZ;
-          const dist = Math.sqrt(dx * dx + dz * dz);
-          if (dist < vacNearestCowDist) vacNearestCowDist = dist;
-        });
+        if (vProg < 18) {
+          // 1. Kuzey koridoru: Doğu -> Batı
+          const tWalk = vProg / 18;
+          vacTargetX = 2 - tWalk * 27;
+          vacLaneZ = -3.8;
+          vacHeading = Math.PI;
+        } else if (vProg < 22) {
+          // Batı lagün ızgarası üstünde geçiş
+          const tTurn = (vProg - 18) / 4;
+          vacTargetX = -25;
+          vacLaneZ = -3.8 + tTurn * 7.6;
+          vacHeading = Math.PI - tTurn * Math.PI;
+        } else if (vProg < 40) {
+          // 2. Güney koridoru: Batı -> Doğu
+          const tWalk = (vProg - 22) / 18;
+          vacTargetX = -25 + tWalk * 27;
+          vacLaneZ = 3.8;
+          vacHeading = 0;
+        } else if (vProg < vacActiveTime) {
+          // Doğu gübre drenaj istasyonuna dönüş
+          const tReturn = (vProg - 40) / (vacActiveTime - 40);
+          vacTargetX = 2 + tReturn * 0.2;
+          vacLaneZ = 3.8 - tReturn * 7.6;
+          vacHeading = tReturn * Math.PI;
+        } else {
+          // DOCKED DEŞARJ & ŞARJ: Gübre çukuruna sıvı boşaltımı & batarya şarjı
+          vacTargetX = 2.2;
+          vacLaneZ = -3.8;
+          vacHeading = 0;
+          isVacDocked = true;
+        }
 
-        if (vacNearestCowDist > 1.35) {
-          vac.position.x = THREE.MathUtils.lerp(vac.position.x, vacTargetX, 0.12);
-          vac.position.z = THREE.MathUtils.lerp(vac.position.z, vacLaneZ, 0.12);
-          vac.rotation.y = THREE.MathUtils.lerp(vac.rotation.y, vacHeading, 0.1);
+        if (isVacDocked) {
+          vac.position.x = THREE.MathUtils.lerp(vac.position.x, 2.2, 0.12);
+          vac.position.z = THREE.MathUtils.lerp(vac.position.z, -3.8, 0.12);
+          vac.rotation.y = THREE.MathUtils.lerp(vac.rotation.y, 0, 0.1);
           if (vacBeacon) {
-            (vacBeacon.material as THREE.MeshStandardMaterial).color.setHex(0x22c55e);
-            (vacBeacon.material as THREE.MeshStandardMaterial).emissive.setHex(0x22c55e);
+            (vacBeacon.material as THREE.MeshStandardMaterial).color.setHex(0x38bdf8);
+            (vacBeacon.material as THREE.MeshStandardMaterial).emissive.setHex(0x38bdf8);
+            (vacBeacon.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.4 + Math.sin(time * 3) * 0.3;
           }
         } else {
-          // İnek gübre yolunda beklerken robot yavaşlar/durur ve ikaz verir
-          if (vacBeacon) {
-            const isAmber = Math.floor(time * 3) % 2 === 0;
-            (vacBeacon.material as THREE.MeshStandardMaterial).color.setHex(isAmber ? 0xf59e0b : 0x000000);
-            (vacBeacon.material as THREE.MeshStandardMaterial).emissive.setHex(isAmber ? 0xf59e0b : 0x000000);
+          // Gübre yolunda inek mesafesi denetimi
+          let vacNearestCowDist = 999;
+          cowMeshesRef.current.forEach((cowGroup) => {
+            const dx = cowGroup.position.x - vac.position.x;
+            const dz = cowGroup.position.z - vacLaneZ;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < vacNearestCowDist) vacNearestCowDist = dist;
+          });
+
+          if (vacNearestCowDist > 1.35) {
+            vac.position.x = THREE.MathUtils.lerp(vac.position.x, vacTargetX, 0.12);
+            vac.position.z = THREE.MathUtils.lerp(vac.position.z, vacLaneZ, 0.12);
+            vac.rotation.y = THREE.MathUtils.lerp(vac.rotation.y, vacHeading, 0.1);
+            if (vacBeacon) {
+              (vacBeacon.material as THREE.MeshStandardMaterial).color.setHex(0x22c55e);
+              (vacBeacon.material as THREE.MeshStandardMaterial).emissive.setHex(0x22c55e);
+              (vacBeacon.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.8;
+            }
+          } else {
+            if (vacBeacon) {
+              const isAmber = Math.floor(time * 3) % 2 === 0;
+              (vacBeacon.material as THREE.MeshStandardMaterial).color.setHex(isAmber ? 0xf59e0b : 0x000000);
+              (vacBeacon.material as THREE.MeshStandardMaterial).emissive.setHex(isAmber ? 0xf59e0b : 0x000000);
+            }
           }
         }
       }
