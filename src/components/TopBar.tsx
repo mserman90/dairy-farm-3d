@@ -154,8 +154,8 @@ export const TopBar: React.FC = () => {
               <span className="bg-gradient-to-r from-amber-300 via-amber-200 to-emerald-300 bg-clip-text text-transparent font-black tracking-normal">
                 {language === 'tr' ? 'Tosunpaşa Çiftliği 3D' : 'Tosunpaşa Farm 3D'}
               </span>
-              <span className="text-[9px] font-bold bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40 uppercase tracking-wider">
-                Sim v1.2
+              <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/40 uppercase tracking-wider flex items-center gap-1" title="Uluslararası Gerçekçi Çiftlik Simülasyon Oyunu">
+                <span>🎮</span> {language === 'tr' ? 'GERÇEKÇİ OYUN SİMÜLASYONU' : 'REALISTIC SIM GAME'}
               </span>
             </h1>
             <p className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
