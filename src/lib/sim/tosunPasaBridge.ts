@@ -182,15 +182,23 @@ export function syncWithTosunPasaMaster(
     const cowSource = baseCow ? { ...baseCow } : { ...templateCow };
 
     const newCowId = baseCow ? baseCow.id : `cow_tp_${digitsOnly.slice(-6) || cowIndex}`;
-    const xPos = -12 + ((cowIndex * 3) % 24);
-    const zPos = -6 + Math.floor(cowIndex / 8) * 4;
+    const xPos = -22 + ((cowIndex * 4.2) % 26);
+    // Yem yolundan (z: -2.5 ila +2.5) kesinlikle uzak, gvenli durak ve yemlik hatlar
+    const zoneChoice = cowIndex % 4;
+    const zPos = zoneChoice === 0 ? -6.8 : (zoneChoice === 1 ? -3.8 : (zoneChoice === 2 ? 3.8 : 6.8));
+    const rotY = zoneChoice === 0 ? Math.PI : (zoneChoice === 1 ? 0 : (zoneChoice === 2 ? Math.PI : 0));
+
+    const isBaseInAlley = baseCow && Math.abs(baseCow.position[2]) < 2.8;
+    const finalPos: [number, number, number] = (baseCow && !isBaseInAlley) ? baseCow.position : [xPos, 0, zPos];
+    const finalRot = (baseCow && !isBaseInAlley) ? baseCow.rotationY : rotY;
 
     const updatedCow: Cow = {
       ...cowSource,
       id: newCowId,
       name: entry.name,
       tagNumber: tagNum,
-      position: baseCow ? baseCow.position : [xPos, 0, zPos],
+      position: finalPos,
+      rotationY: finalRot,
     };
 
     // Irk tahmini

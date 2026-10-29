@@ -479,21 +479,146 @@ export const Farm3DCanvas: React.FC = () => {
         }
       }
 
-      // Animate Juno-X Feed Pusher along central feed bunk
+      // -------------------------------------------------------------
+      // Animate Juno-X Feed Pusher Robot (with LiDAR & Cow Collision Avoidance)
+      // -------------------------------------------------------------
       if (junoRobotRef.current) {
-        const junoX = -24 + ((Math.sin(time * 0.35) + 1) / 2) * 26;
-        junoRobotRef.current.position.x = junoX;
-        junoRobotRef.current.position.z = 1.7;
-        const skirt = junoRobotRef.current.getObjectByName('juno_skirt');
-        if (skirt) skirt.rotation.y += 6 * delta;
+        const juno = junoRobotRef.current;
+        const skirt = juno.getObjectByName('juno_skirt');
+        const beacon = juno.getObjectByName('juno_beacon') as THREE.Mesh;
+
+        // Path cycle: 2-sided feed bunk route (West along South bunk z=1.55, East along North bunk z=-1.55)
+        const cycleDuration = 38;
+        const progress = (time * 0.6) % cycleDuration;
+        const halfCycle = cycleDuration / 2;
+
+        let targetX = -24;
+        let baseZ = 1.55;
+        let headingAngle = Math.PI;
+
+        if (progress < halfCycle - 2) {
+          // 1. Bacak: Güney yemlik hattında batıya doğru ilerle (x: 4 -> -24, z: 1.55)
+          const tLeg = progress / (halfCycle - 2);
+          targetX = 4 - tLeg * 28;
+          baseZ = 1.55;
+          headingAngle = Math.PI; // Batı yönü
+        } else if (progress < halfCycle) {
+          // Batı apeksinde yumuşak U dönüşü
+          const tTurn = (progress - (halfCycle - 2)) / 2;
+          targetX = -24 - Math.sin(tTurn * Math.PI) * 1.5;
+          baseZ = 1.55 - tTurn * 3.1;
+          headingAngle = Math.PI - tTurn * Math.PI;
+        } else if (progress < cycleDuration - 2) {
+          // 2. Bacak: Kuzey yemlik hattında doğuya doğru ilerle (x: -24 -> 4, z: -1.55)
+          const tLeg = (progress - halfCycle) / (halfCycle - 2);
+          targetX = -24 + tLeg * 28;
+          baseZ = -1.55;
+          headingAngle = 0; // Doğu yönü
+        } else {
+          // Doğu apeksinde yumuşak U dönüşü
+          const tTurn = (progress - (cycleDuration - 2)) / 2;
+          targetX = 4 + Math.sin(tTurn * Math.PI) * 1.5;
+          baseZ = -1.55 + tTurn * 3.1;
+          headingAngle = tTurn * Math.PI;
+        }
+
+        // Aktif ineklerle mesafe kontrolü (LiDAR ve ultrasonik sensör kalkanı)
+        let minCowDistance = 999;
+        let nearestCowPos: THREE.Vector3 | null = null;
+
+        cowMeshesRef.current.forEach((cowGroup) => {
+          const dx = cowGroup.position.x - targetX;
+          const dz = cowGroup.position.z - baseZ;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < minCowDistance) {
+            minCowDistance = dist;
+            nearestCowPos = cowGroup.position;
+          }
+        });
+
+        // Çarpışma Önleme ve Otonom Engel Kaçınma:
+        // Eğer bir inek 2.6 metreden daha yakınsa, robot yem yolunun merkezine (z=0) doğru manevra yapar
+        let finalZ = baseZ;
+        let isEmergencyStop = false;
+
+        if (minCowDistance < 2.6 && nearestCowPos) {
+          const overlap = 2.6 - minCowDistance;
+          // İnekten güvenli uzaklaş: yem yolunun merkezine (z: 0) doğru kır
+          if (baseZ > 0) {
+            finalZ = Math.max(0.1, baseZ - overlap * 0.95);
+          } else {
+            finalZ = Math.min(-0.1, baseZ + overlap * 0.95);
+          }
+
+          // Eğer doğrudan rota üzerinde 1.15m içine girmiş bir inek varsa acil duruş yap
+          if (minCowDistance < 1.15) {
+            isEmergencyStop = true;
+          }
+        }
+
+        if (!isEmergencyStop) {
+          juno.position.x = THREE.MathUtils.lerp(juno.position.x, targetX, 0.15);
+          juno.position.z = THREE.MathUtils.lerp(juno.position.z, finalZ, 0.15);
+          juno.rotation.y = THREE.MathUtils.lerp(juno.rotation.y, headingAngle, 0.12);
+          if (skirt) skirt.rotation.y += 6 * delta;
+          if (beacon) {
+            const isWarn = minCowDistance < 2.6;
+            (beacon.material as THREE.MeshStandardMaterial).color.setHex(isWarn ? 0xf59e0b : 0x22c55e);
+            (beacon.material as THREE.MeshStandardMaterial).emissive.setHex(isWarn ? 0xf59e0b : 0x22c55e);
+          }
+        } else {
+          // İnek çok yakın: Robot durur ve tepe ikaz lambası yanıp söner
+          if (skirt) skirt.rotation.y += 1 * delta;
+          if (beacon) {
+            const isFlash = Math.floor(time * 4) % 2 === 0;
+            (beacon.material as THREE.MeshStandardMaterial).color.setHex(isFlash ? 0xef4444 : 0x000000);
+            (beacon.material as THREE.MeshStandardMaterial).emissive.setHex(isFlash ? 0xef4444 : 0x000000);
+          }
+        }
       }
 
-      // Animate Discovery-Vac Manure Robot along alley
+      // -------------------------------------------------------------
+      // Animate Discovery-Vac Slurry Robot (in Manure Lanes with Cow Avoidance)
+      // -------------------------------------------------------------
       if (discoveryRobotRef.current) {
-        const vacX = -26 + ((Math.cos(time * 0.28) + 1) / 2) * 22;
-        discoveryRobotRef.current.position.x = vacX;
-        discoveryRobotRef.current.position.z = -5.8;
-        discoveryRobotRef.current.rotation.y = Math.sin(time * 0.28) > 0 ? 0 : Math.PI;
+        const vac = discoveryRobotRef.current;
+        const vacBeacon = vac.getObjectByName('vac_beacon') as THREE.Mesh;
+
+        // Koridor sıyırma rotası: Kuzey gübre yolu (z: -3.8) ve Güney gübre yolu (z: 3.8)
+        const vacCycle = 44;
+        const vProg = (time * 0.42) % vacCycle;
+        const isNorthLeg = vProg < vacCycle / 2;
+        const tWalk = isNorthLeg ? vProg / (vacCycle / 2) : (vProg - vacCycle / 2) / (vacCycle / 2);
+
+        const vacTargetX = isNorthLeg ? 2 - tWalk * 27 : -25 + tWalk * 27;
+        const vacLaneZ = isNorthLeg ? -3.8 : 3.8;
+        const vacHeading = isNorthLeg ? Math.PI : 0;
+
+        // Gübre yolunda inek mesafesi denetimi
+        let vacNearestCowDist = 999;
+        cowMeshesRef.current.forEach((cowGroup) => {
+          const dx = cowGroup.position.x - vac.position.x;
+          const dz = cowGroup.position.z - vacLaneZ;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < vacNearestCowDist) vacNearestCowDist = dist;
+        });
+
+        if (vacNearestCowDist > 1.35) {
+          vac.position.x = THREE.MathUtils.lerp(vac.position.x, vacTargetX, 0.12);
+          vac.position.z = THREE.MathUtils.lerp(vac.position.z, vacLaneZ, 0.12);
+          vac.rotation.y = THREE.MathUtils.lerp(vac.rotation.y, vacHeading, 0.1);
+          if (vacBeacon) {
+            (vacBeacon.material as THREE.MeshStandardMaterial).color.setHex(0x22c55e);
+            (vacBeacon.material as THREE.MeshStandardMaterial).emissive.setHex(0x22c55e);
+          }
+        } else {
+          // İnek gübre yolunda beklerken robot yavaşlar/durur ve ikaz verir
+          if (vacBeacon) {
+            const isAmber = Math.floor(time * 3) % 2 === 0;
+            (vacBeacon.material as THREE.MeshStandardMaterial).color.setHex(isAmber ? 0xf59e0b : 0x000000);
+            (vacBeacon.material as THREE.MeshStandardMaterial).emissive.setHex(isAmber ? 0xf59e0b : 0x000000);
+          }
+        }
       }
 
       // Animate Worker Avatar along clean-to-dirty biosecurity circuit
@@ -2032,13 +2157,22 @@ function buildAgriTwinFacilityAndRobots(
   antenna.position.set(0, 1.15, 0);
   junoGroup.add(antenna);
 
+  // Status & LiDAR Obstacle Warning Beacon
+  const junoLed = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 8, 8),
+    new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 1.0 })
+  );
+  junoLed.name = 'juno_beacon';
+  junoLed.position.set(0, 0.95, 0.35);
+  junoGroup.add(junoLed);
+
   scene.add(junoGroup);
   junoRobotRef.current = junoGroup;
 
   // 3. DISCOVERY-VAC AUTONOMOUS SLURRY VACUUM ROBOT
   const vacGroup = new THREE.Group();
   vacGroup.name = 'discovery_slurry_vac';
-  vacGroup.position.set(-16, 0.25, -5.8);
+  vacGroup.position.set(-16, 0.25, -3.8);
 
   const vacBodyMat = new THREE.MeshStandardMaterial({ color: '#0284c7', roughness: 0.4 });
   const vacBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 1.2), vacBodyMat);
@@ -2057,6 +2191,7 @@ function buildAgriTwinFacilityAndRobots(
     new THREE.SphereGeometry(0.08, 8, 8),
     new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 0.9 })
   );
+  vacLed.name = 'vac_beacon';
   vacLed.position.set(0, 0.65, 0);
   vacGroup.add(vacLed);
 

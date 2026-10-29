@@ -225,6 +225,10 @@ function loadPersistedState(): FarmState {
           if (!parsed.digitalTwin.icarAde) parsed.digitalTwin.icarAde = createInitialDigitalTwinState().icarAde;
         }
         parsed.cows.forEach((c: any) => {
+          if (c.position && Math.abs(c.position[2]) < 2.8) {
+            c.position[2] = c.position[2] >= 0 ? 3.8 : -3.8;
+            c.rotationY = c.position[2] >= 0 ? Math.PI : 0;
+          }
           if (c.udderFillPct === undefined) c.udderFillPct = c.state === 'lactating' ? 60 : 0;
           if (c.ruminationMinutesToday === undefined) c.ruminationMinutesToday = 480;
           if (c.isStandingHeat === undefined) c.isStandingHeat = false;
