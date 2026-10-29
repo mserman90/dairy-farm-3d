@@ -14,6 +14,7 @@ export const en = {
     breedLab: 'Breed Engineer',
     settings: 'Settings & Save',
     events: 'Farm Events Log',
+    digitalTwin: 'Digital Twin (AgriTwin)',
   },
 
   topBar: {
@@ -196,5 +197,17 @@ export const en = {
     easy: 'Easy (€120,000 Initial Funds)',
     normal: 'Normal (€65,000 Initial Funds)',
     hard: 'Hard (€25,000 Initial Funds)',
+  },
+
+  // Digital Twin
+  digitalTwin: {
+    title: 'Digital Twin & IoT Telemetry Center (AgriTwin Engine)',
+    subtitle: '14 Biomechanical Models, Barn Robotics Fleet, Biogas Net-Zero & AI Advisor',
+    tabOverview: 'Overview & Telemetry',
+    tabSingleCow: 'Individual Twin & Sensors',
+    tabRationOptimizer: 'Ration & Methane Optimizer',
+    tabScenarios: '"What-If" Simulator',
+    tabAiAdvisor: 'AI Precision Dairy Advisor',
+    tabIcarAde: 'ICAR ADE v2 Data Exchange',
   },
 };

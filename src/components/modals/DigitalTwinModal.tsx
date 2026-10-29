@@ -7,6 +7,7 @@ import {
   Cpu,
   Database,
   Download,
+  ExternalLink,
   Flame,
   Gauge,
   HelpCircle,
@@ -98,6 +99,14 @@ export const DigitalTwinModal: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.open('../digital-twin/index.html', '_blank')}
+              className="px-3 py-1 rounded bg-sky-950/80 hover:bg-sky-900 border border-sky-500/40 text-sky-300 font-semibold text-[11px] flex items-center gap-1.5 transition"
+              title="AgriTwin 14 Modüllü Çiftlik Dijital İkizini Ayrı Pencerede Aç"
+            >
+              <ExternalLink className="w-3 h-3" />
+              AgriTwin Süiti (14 Modül) ↗
+            </button>
             <button
               onClick={handleExportAde}
               className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 font-semibold text-[11px] flex items-center gap-1.5 transition"

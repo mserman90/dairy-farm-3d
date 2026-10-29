@@ -15,6 +15,7 @@ export const tr = {
     breedLab: 'Irk Mühendisi (Breed Lab)',
     settings: 'Ayarlar & Kayıt (Settings)',
     events: 'Çiftlik Olayları (Events)',
+    digitalTwin: 'Dijital İkiz (Digital Twin)',
   },
 
   // Top Bar
@@ -208,5 +209,17 @@ export const tr = {
     easy: 'Kolay (€120,000 Başlangıç)',
     normal: 'Normal (€65,000 Başlangıç)',
     hard: 'Zor (€25,000 Başlangıç)',
+  },
+
+  // Digital Twin
+  digitalTwin: {
+    title: 'Dijital İkiz & IoT Telemetri Merkezi (Digital Twin Engine)',
+    subtitle: '14 Biyomekanik Modül, Otonom Ahır Robotları, Biyogaz Net-Sıfır ve AI Danışman',
+    tabOverview: 'Genel Bakış & Telemetri',
+    tabSingleCow: 'Bireysel İkiz & Sensörler',
+    tabRationOptimizer: 'Rasyon & Metan Optimizeri',
+    tabScenarios: '"What-If" Simülatörü',
+    tabAiAdvisor: 'AI Hassas Sütçülük Danışmanı',
+    tabIcarAde: 'ICAR ADE v2 Veri Değişimi',
   },
 };
