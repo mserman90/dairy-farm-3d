@@ -66,6 +66,8 @@ export const Farm3DCanvas: React.FC = () => {
   const routesOverlayRef = useRef<THREE.Group | null>(null);
   const digitalTwinGroupRef = useRef<THREE.Group | null>(null);
   const sheddingGateRef = useRef<THREE.Group | null>(null);
+  const junoRobotRef = useRef<THREE.Group | null>(null);
+  const discoveryRobotRef = useRef<THREE.Group | null>(null);
   const weatherParticlesRef = useRef<THREE.Points | null>(null);
   const lightsRef = useRef<{
     sun: THREE.DirectionalLight;
@@ -145,6 +147,7 @@ export const Farm3DCanvas: React.FC = () => {
 
     // Build Digital Twin IoT Sensor Probes & Smart Shedding Gate
     buildDigitalTwinObjects(scene, digitalTwinGroupRef, sheddingGateRef);
+    buildAgriTwinFacilityAndRobots(scene, junoRobotRef, discoveryRobotRef);
 
     // Mouse and Keyboard Controls
     let isMouseDown = false;
@@ -474,6 +477,23 @@ export const Farm3DCanvas: React.FC = () => {
           const feedStream = tractorTruckRef.current.getObjectByName('feed_stream');
           if (feedStream) feedStream.visible = false;
         }
+      }
+
+      // Animate Juno-X Feed Pusher along central feed bunk
+      if (junoRobotRef.current) {
+        const junoX = -24 + ((Math.sin(time * 0.35) + 1) / 2) * 26;
+        junoRobotRef.current.position.x = junoX;
+        junoRobotRef.current.position.z = 1.7;
+        const skirt = junoRobotRef.current.getObjectByName('juno_skirt');
+        if (skirt) skirt.rotation.y += 6 * delta;
+      }
+
+      // Animate Discovery-Vac Manure Robot along alley
+      if (discoveryRobotRef.current) {
+        const vacX = -26 + ((Math.cos(time * 0.28) + 1) / 2) * 22;
+        discoveryRobotRef.current.position.x = vacX;
+        discoveryRobotRef.current.position.z = -5.8;
+        discoveryRobotRef.current.rotation.y = Math.sin(time * 0.28) > 0 ? 0 : Math.PI;
       }
 
       // Animate Worker Avatar along clean-to-dirty biosecurity circuit
@@ -1920,4 +1940,126 @@ function buildDigitalTwinObjects(
 
   scene.add(gateGroup);
   sheddingGateRef.current = gateGroup;
+}
+
+function buildAgriTwinFacilityAndRobots(
+  scene: THREE.Scene,
+  junoRobotRef: React.MutableRefObject<THREE.Group | null>,
+  discoveryRobotRef: React.MutableRefObject<THREE.Group | null>
+): void {
+  // 1. BIOGAS ANAEROBIC DIGESTER DOME & 60 kW CHP GENERATOR
+  const biogasGroup = new THREE.Group();
+  biogasGroup.name = 'biogas_facility_group';
+  biogasGroup.position.set(24, 0, 18);
+
+  // Concrete Tank Base
+  const baseGeo = new THREE.CylinderGeometry(5.2, 5.2, 3.2, 24);
+  const concreteMat = new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.85 });
+  const tankBase = new THREE.Mesh(baseGeo, concreteMat);
+  tankBase.position.y = 1.6;
+  tankBase.castShadow = true;
+  tankBase.receiveShadow = true;
+  biogasGroup.add(tankBase);
+
+  // Green Gas Holder Membrane Dome
+  const domeGeo = new THREE.SphereGeometry(5.2, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  const domeMat = new THREE.MeshStandardMaterial({
+    color: '#15803d',
+    roughness: 0.4,
+    metalness: 0.1,
+  });
+  const domeMesh = new THREE.Mesh(domeGeo, domeMat);
+  domeMesh.position.y = 3.2;
+  domeMesh.castShadow = true;
+  biogasGroup.add(domeMesh);
+
+  // Digestate slurry inlet pipe from barn
+  const pipeMat = new THREE.MeshStandardMaterial({ color: '#334155', metalness: 0.7, roughness: 0.3 });
+  const inletPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 12, 12), pipeMat);
+  inletPipe.rotation.z = Math.PI / 2;
+  inletPipe.position.set(-6, 0.4, -4);
+  biogasGroup.add(inletPipe);
+
+  // 60 kW CHP Microturbine Building
+  const chpBuildingMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.6 });
+  const chpBuilding = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.8, 3.4), chpBuildingMat);
+  chpBuilding.position.set(6.5, 1.4, 0);
+  chpBuilding.castShadow = true;
+  biogasGroup.add(chpBuilding);
+
+  // Exhaust Stack with thermal glow
+  const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.5, 12), pipeMat);
+  stack.position.set(6.5, 3.8, 0);
+  biogasGroup.add(stack);
+
+  // Status LED Beacon on CHP
+  const chpLed = new THREE.Mesh(
+    new THREE.SphereGeometry(0.15, 8, 8),
+    new THREE.MeshStandardMaterial({ color: '#10b981', emissive: '#10b981', emissiveIntensity: 1.0 })
+  );
+  chpLed.position.set(4.5, 2.4, 1.8);
+  biogasGroup.add(chpLed);
+
+  scene.add(biogasGroup);
+
+  // 2. JUNO-X AUTONOMOUS FEED PUSHER ROBOT
+  const junoGroup = new THREE.Group();
+  junoGroup.name = 'juno_feed_pusher';
+  junoGroup.position.set(-10, 0.25, 1.7);
+
+  // Red main cylinder body
+  const junoBodyMat = new THREE.MeshStandardMaterial({ color: '#dc2626', roughness: 0.35 });
+  const junoBody = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.75, 0.65, 16), junoBodyMat);
+  junoBody.position.y = 0.45;
+  junoBody.castShadow = true;
+  junoGroup.add(junoBody);
+
+  // Bottom Rotating Scraper Skirt
+  const skirtMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.8 });
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.14, 16), skirtMat);
+  skirt.name = 'juno_skirt';
+  skirt.position.y = 0.1;
+  junoGroup.add(skirt);
+
+  // Top Dome & Ultrasonic Radar
+  const topLidMat = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.2 });
+  const topLid = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), topLidMat);
+  topLid.position.y = 0.78;
+  junoGroup.add(topLid);
+
+  // Telemetry Antenna
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.45, 6), pipeMat);
+  antenna.position.set(0, 1.15, 0);
+  junoGroup.add(antenna);
+
+  scene.add(junoGroup);
+  junoRobotRef.current = junoGroup;
+
+  // 3. DISCOVERY-VAC AUTONOMOUS SLURRY VACUUM ROBOT
+  const vacGroup = new THREE.Group();
+  vacGroup.name = 'discovery_slurry_vac';
+  vacGroup.position.set(-16, 0.25, -5.8);
+
+  const vacBodyMat = new THREE.MeshStandardMaterial({ color: '#0284c7', roughness: 0.4 });
+  const vacBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 1.2), vacBodyMat);
+  vacBody.position.y = 0.35;
+  vacBody.castShadow = true;
+  vacGroup.add(vacBody);
+
+  // Front Suction Nozzle / Squeegee
+  const nozzleMat = new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.9 });
+  const nozzle = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.18, 0.3), nozzleMat);
+  nozzle.position.set(0, 0.12, 0.65);
+  vacGroup.add(nozzle);
+
+  // Status Beacon
+  const vacLed = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 8, 8),
+    new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 0.9 })
+  );
+  vacLed.position.set(0, 0.65, 0);
+  vacGroup.add(vacLed);
+
+  scene.add(vacGroup);
+  discoveryRobotRef.current = vacGroup;
 }

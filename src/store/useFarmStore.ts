@@ -1264,6 +1264,24 @@ if (typeof window !== 'undefined') {
     try {
       if (event.data && (event.data.type === 'TOSUN_PASA_SYNC' || event.data.type === 'SYNC_FARM_DATA')) {
         useFarmStore.getState().syncWithTosunPasaAction(event.data.db);
+      } else if (event.data && event.data.type === 'TRIGGER_SHEDDING_GATE') {
+        const { cowTag, condition, targetPen } = event.data;
+        const state = useFarmStore.getState();
+        const tagDigits = String(cowTag || '').replace(/\D/g, '');
+        const foundCow = state.farm.cows.find(c => 
+          (tagDigits && String(c.tagNumber) === tagDigits) ||
+          (c.name && cowTag && c.name.toLowerCase().includes(String(cowTag).toLowerCase()))
+        ) || state.farm.cows[0];
+
+        let mappedPen: 'quarantine_treatment' | 'maternity' | 'insemination_chute' = 'quarantine_treatment';
+        if (targetPen && (targetPen.includes('Tohumlama') || targetPen.includes('Pen A'))) {
+          mappedPen = 'insemination_chute';
+        } else if (targetPen && targetPen.includes('Doğum')) {
+          mappedPen = 'maternity';
+        }
+        if (foundCow) {
+          state.triggerSheddingGateAction(foundCow.id, mappedPen, condition || 'Otomatik XAI Yönlendirmesi');
+        }
       }
     } catch (e) {
       console.warn('Canlı mesaj işleme hatası:', e);
