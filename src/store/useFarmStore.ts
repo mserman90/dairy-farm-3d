@@ -1,3 +1,15 @@
+import { RumenBiochemicalEngine } from '../lib/digitalTwin/rumenTwin';
+import { RoboticMilkingEngine } from '../lib/digitalTwin/roboticMilkingTwin';
+import { CircularBiogasEnergyEngine } from '../lib/digitalTwin/biogasEnergyTwin';
+import { BarnRoboticsFleetEngine } from '../lib/digitalTwin/barnRoboticsTwin';
+import { CalvingPredictionEngine } from '../lib/digitalTwin/calvingTwin';
+import { GenomicBreedingEngine } from '../lib/digitalTwin/genomicTwin';
+import { ComputerVisionTwinEngine } from '../lib/digitalTwin/visionTwin';
+import { TMRRationOptimizerEngine } from '../lib/digitalTwin/rationOptimizer';
+import { SpatialRtlsEngine } from '../lib/digitalTwin/spatialRtls';
+import { ScenarioTwinEngine } from '../lib/digitalTwin/scenarioEngine';
+import { generateIcarAdeV2Json } from '../lib/digitalTwin/icarAde';
+import { AiPrecisionDairyAdvisor, AdvisorResponse } from '../lib/digitalTwin/aiAdvisor';
 import { create } from 'zustand';
 import { AI_BULLS_CATALOG, DEFAULT_BREEDS, FEED_DATABASE } from '../lib/sim/constants';
 import { attemptInsemination } from '../lib/sim/genetics';
@@ -1193,6 +1205,67 @@ export const useFarmStore = create<FarmStore>((set, get) => ({
       };
     });
     return json;
+  },
+
+  triggerScenarioAction: (scenarioId: string) => {
+    synthAudio.playWarningAlert();
+    const current = get().farm;
+    const lang = get().language;
+    const { updatedFarm, notification } = ScenarioTwinEngine.applyScenario(current, scenarioId, lang);
+    set((state) => ({
+      farm: updatedFarm,
+      notifications: [notification, ...state.notifications].slice(0, 30),
+    }));
+  },
+
+  applyRationStrategyAction: (strategyId: 'max_profit' | 'eco_low_methane' | 'balanced_pareto') => {
+    synthAudio.playCashChime();
+    const current = get().farm;
+    const plans = current.tmrOptimizerPlans || TMRRationOptimizerEngine.generateParetoDiets(32);
+    const chosenPlan = plans.find((p: any) => p.strategyId === strategyId) || plans[0];
+
+    const newRation: RationItem[] = [
+      { feedId: 'corn_silage', kgFreshWeight: chosenPlan.feedAllocationsKgFresh['Mısır Silajı'] || 20 },
+      { feedId: 'alfalfa_hay', kgFreshWeight: chosenPlan.feedAllocationsKgFresh['Yonca Kuru Otu'] || 5 },
+      { feedId: 'concentrate', kgFreshWeight: chosenPlan.feedAllocationsKgFresh['Süt Yemi Standart'] || 7 },
+      { feedId: 'soybean_meal', kgFreshWeight: chosenPlan.feedAllocationsKgFresh['Soya Küspesi 44'] || 1.8 },
+      { feedId: 'mineral_premix', kgFreshWeight: chosenPlan.feedAllocationsKgFresh['Premiks / Bovaer 3-NOP'] || 0.4 },
+    ];
+
+    const lang = get().language;
+    const notif: NotificationItem = {
+      id: `tmr_applied_${Date.now()}`,
+      day: current.day,
+      hour: Math.floor(current.hour),
+      type: 'success',
+      titleTr: `TMR Rasyonu Uygulandı: ${chosenPlan.nameTr}`,
+      titleEn: `TMR Ration Applied: ${chosenPlan.nameEn}`,
+      messageTr: `Optimizasyon tamamlandı. Günlük rasyon maliyeti: €${chosenPlan.dailyCostEuro.toFixed(2)}, Enterik metan azaltımı: -%${chosenPlan.methaneReductionPct.toFixed(0)}, Gelir eksi yem maliyeti: €${chosenPlan.iofcEuro.toFixed(2)}/inek/gün.`,
+      messageEn: `Optimization complete. Daily cost: €${chosenPlan.dailyCostEuro.toFixed(2)}, Enteric CH4 reduction: -${chosenPlan.methaneReductionPct.toFixed(0)}%, IOFC: €${chosenPlan.iofcEuro.toFixed(2)}/cow/day.`,
+      timestamp: Date.now(),
+    };
+
+    set((state) => ({
+      farm: {
+        ...state.farm,
+        activeRation: newRation,
+        activeScenarioId: strategyId === 'eco_low_methane' ? 'bovaer_3nop_carbon_drop' : state.farm.activeScenarioId,
+      },
+      notifications: [notif, ...state.notifications].slice(0, 30),
+    }));
+  },
+
+  runAiAdvisorQueryAction: (question: string) => {
+    synthAudio.playClick();
+    const current = get().farm;
+    const lang = get().language;
+    return AiPrecisionDairyAdvisor.query(question, current, lang);
+  },
+
+  exportIcarAdeV2Action: () => {
+    synthAudio.playCashChime();
+    const current = get().farm;
+    return generateIcarAdeV2Json(current);
   },
 
   syncWithTosunPasaAction: (explicitDb?: any) => {

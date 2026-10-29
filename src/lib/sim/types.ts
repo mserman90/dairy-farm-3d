@@ -1,3 +1,15 @@
+import type {
+  RumenBiochemicalState,
+  RoboticMilkingTwinState,
+  BiogasEnergyTwinState,
+  BarnRoboticsFleetState,
+  CalvingPredictionData,
+  CowGenomicPedigree,
+  VisionTwinData,
+  TmrOptimizationResult,
+  SpatialRtlsGridState,
+} from '../digitalTwin/types';
+
 // Süt Sığırcılığı Simülasyon Veri Tipleri (Dairy Cattle Simulation Data Types)
 // Tosun Paşa Çiftliği Bütünleşik Sistem Uyarlaması
 
@@ -234,6 +246,18 @@ export interface Cow {
   methaneGramsPerDay?: number;    // RuFaS enterik metan salımı (g CH4/inek/gün)
   digitalTwinStatus?: 'optimal' | 'warning' | 'alert';
 
+  // AgriTwin Integrated Twins
+  breed?: string;
+  stage?: string;
+  dailyMilkYield?: number;
+  healthState?: string;
+  daysInMilk?: number;
+  rumen?: RumenBiochemicalState;
+  milkingTwin?: RoboticMilkingTwinState;
+  vision?: VisionTwinData;
+  pedigree?: CowGenomicPedigree;
+  calvingPrediction?: CalvingPredictionData;
+
   events: CowEvent[];
 }
 
@@ -380,6 +404,13 @@ export interface FarmState {
 
   // Dijital İkiz (Digital Twin), IoT Sensör Ağı, XAI Karar Destek & inSiliCow/RuFaS Motoru
   digitalTwin?: DigitalTwinState;
+
+  // AgriTwin Integrated Twins
+  biogasTwin?: BiogasEnergyTwinState;
+  roboticsFleet?: BarnRoboticsFleetState;
+  spatialRtls?: SpatialRtlsGridState;
+  tmrOptimizerPlans?: TmrOptimizationResult[];
+  activeScenarioId?: string | null;
 }
 
 // =============================================================================

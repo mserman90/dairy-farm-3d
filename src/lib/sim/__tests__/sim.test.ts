@@ -374,3 +374,93 @@ test('Comprehensive Farm Events: Full-Spectrum Dairy Event Engine & Intervention
   assert.equal(treatRes.success, true, 'Treatment should succeed');
   assert.equal(testCow.activeIllnesses.length, 0, 'Illness should be cleared after treatment');
 });
+
+
+test('AgriTwin Digital Twin: 14 Integrated Models, Robotics, Biogas & ICAR ADE v2', async () => {
+  const { RumenBiochemicalEngine } = await import('../../digitalTwin/rumenTwin');
+  const { RoboticMilkingEngine } = await import('../../digitalTwin/roboticMilkingTwin');
+  const { CircularBiogasEnergyEngine } = await import('../../digitalTwin/biogasEnergyTwin');
+  const { BarnRoboticsFleetEngine } = await import('../../digitalTwin/barnRoboticsTwin');
+  const { CalvingPredictionEngine } = await import('../../digitalTwin/calvingTwin');
+  const { GenomicBreedingEngine } = await import('../../digitalTwin/genomicTwin');
+  const { ComputerVisionTwinEngine } = await import('../../digitalTwin/visionTwin');
+  const { TMRRationOptimizerEngine } = await import('../../digitalTwin/rationOptimizer');
+  const { SpatialRtlsEngine } = await import('../../digitalTwin/spatialRtls');
+  const { ScenarioTwinEngine } = await import('../../digitalTwin/scenarioEngine');
+  const { AiPrecisionDairyAdvisor } = await import('../../digitalTwin/aiAdvisor');
+  const { generateIcarAdeV2Json } = await import('../../digitalTwin/icarAde');
+
+  // 1. Rumen Biochemical Engine
+  const rumen = RumenBiochemicalEngine.createDiurnalProfile(38, 0.45, 0.16);
+  assert.equal(rumen.hourlyPhCurve.length, 24, 'Rumen diurnal profile must have 24 hours');
+  assert.ok(rumen.currentPh >= 5.0 && rumen.currentPh <= 7.0, 'Rumen pH should be biological');
+  assert.ok(rumen.acetateToPropionateRatio > 1.5, 'Acetate to propionate ratio should be realistic');
+
+  // 2. Robotic Milking Engine
+  const roboticMilking = RoboticMilkingEngine.simulateRoboticMilking(36, 120000, false);
+  assert.ok(roboticMilking.quarters.LF && roboticMilking.quarters.RF, '4 quarters must be present');
+  assert.equal(roboticMilking.divertedMilk, false, 'Healthy cow milk should not be diverted');
+
+  const mastitisMilking = RoboticMilkingEngine.simulateRoboticMilking(36, 750000, false);
+  assert.equal(mastitisMilking.divertedMilk, true, 'High SCC cow milk must be diverted from tank');
+
+  // 3. Biogas Net-Zero Engine
+  const biogas = CircularBiogasEnergyEngine.calculateBiogasCycle(10, 38.5, 26, 0.22);
+  assert.ok(biogas.dailyBiogasProducedM3 > 40, '10 cows should yield significant biogas');
+  assert.ok(biogas.dailyKWhGenerated > 80, 'CHP should generate electric power');
+  assert.ok(biogas.gridSelfSufficiencyPct > 30, 'Microgrid self-sufficiency should be calculated');
+
+  // 4. Barn Robotics Fleet Engine
+  const fleet = BarnRoboticsFleetEngine.createInitialFleet();
+  assert.ok(fleet.feedPusher && fleet.manureCleaner, 'Fleet must include feed pusher and manure cleaner');
+  const steppedFleet = BarnRoboticsFleetEngine.stepFleet(fleet, 5);
+  assert.ok(steppedFleet.feedPusher.batteryPct <= 100, 'Battery should not exceed 100%');
+
+  // 5. Calving & Dystocia Engine
+  const calving = CalvingPredictionEngine.evaluateCalvingAlerts(282.5, 37.8, 680, 410);
+  assert.ok(calving.hoursToCalving <= 24, 'Near-term cow with temp drop should alert imminent calving');
+  assert.ok(calving.colostrumQualityBrix >= 15, 'Brix refractometer reading should be generated');
+
+  // 6. Genomic Selection & Pedigree Engine
+  const pedigree = GenomicBreedingEngine.generatePedigreeProfile('Sarıkız', 'cow_test', 'bull_titan', undefined, 0.02);
+  assert.ok(pedigree.netMeritDollars > 300, 'Net Merit should be positive');
+  assert.ok(pedigree.tpi > 2000, 'TPI should be realistic');
+  assert.equal(typeof pedigree.recessiveCarriers.HCD, 'boolean', 'Recessive carrier test status required');
+
+  // 7. Computer Vision Spine & Lameness Engine
+  const vision = ComputerVisionTwinEngine.assessCowVision(3.25, 1);
+  assert.equal(vision.spineProfile.length, 9, 'Spine profile must have 9 sagittal points');
+  assert.equal(vision.sprecherLamenessScore, 1, 'Sound cow should have Sprecher 1');
+
+  // 8. TMR Pareto Optimizer with Bovaer 3-NOP
+  const diets = TMRRationOptimizerEngine.generateParetoDiets(32);
+  assert.equal(diets.length, 3, 'Must produce 3 Pareto frontier strategies');
+  const ecoDiet = diets.find(d => d.strategyId === 'eco_low_methane');
+  assert.ok(ecoDiet, 'Eco low-methane strategy must exist');
+  assert.equal(ecoDiet.bovaerAdditiveGramsPerDay, 1.5, 'Bovaer 3-NOP should be 1.5g/day');
+  assert.equal(ecoDiet.methaneReductionPct, 28, 'Bovaer should achieve -28% enteric methane');
+
+  // 9. Spatial RTLS Microclimate
+  const rtls = SpatialRtlsEngine.createInitialGrid(22, 60, [{ id: 'cow_1', tag: 101, position: [-5, 0, 2] }]);
+  assert.equal(rtls.zones.length, 40, 'RTLS grid must have 8x5 = 40 zones');
+
+  // 10. "What-If" Scenario Engine
+  const farm = createInitialFarmState('normal');
+  const scenarioResult = ScenarioTwinEngine.applyScenario(farm, 'dystocia_ces_alarm', 'tr');
+  assert.ok(scenarioResult.updatedFarm, 'Scenario must return updated farm');
+  assert.ok(scenarioResult.notification.titleTr.includes('Distosi'), 'Notification should reflect dystocia');
+
+  // 11. AI Precision Dairy Advisor
+  const aiTr = AiPrecisionDairyAdvisor.query('Rumen pH ve SARA durumu nedir?', farm, 'tr');
+  assert.equal(aiTr.category, 'RUMEN', 'Category should be RUMEN');
+  assert.ok(aiTr.answer.includes('Rumen Telemetri Analizi'), 'Answer should be contextualized');
+
+  const aiEn = AiPrecisionDairyAdvisor.query('What is the status of the biogas microgrid?', farm, 'en');
+  assert.equal(aiEn.category, 'BIOGAS', 'Category should be BIOGAS');
+
+  // 12. ICAR ADE v2 Exporter
+  const icarJson = generateIcarAdeV2Json(farm);
+  const parsed = JSON.parse(icarJson);
+  assert.equal(parsed.icarStandardVersion, 'ICAR ADE v2.0 (ISO 11787 / 17532)');
+  assert.ok(parsed.animals.length > 0, 'Exported animals array should not be empty');
+});
