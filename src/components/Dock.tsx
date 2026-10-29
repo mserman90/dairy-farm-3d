@@ -114,7 +114,7 @@ export const Dock: React.FC = () => {
   ];
 
   return (
-    <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-950/85 backdrop-blur-lg border border-slate-800/90 rounded-2xl p-1.5 shadow-2xl flex items-center gap-1">
+    <nav className="fixed bottom-9 sm:bottom-10 left-1/2 -translate-x-1/2 z-40 bg-slate-950/85 backdrop-blur-lg border border-slate-800/90 rounded-2xl p-1.5 shadow-2xl flex items-center gap-1">
       {navItems.map((item) => {
         const isActive = activeModal === item.id;
         return (
